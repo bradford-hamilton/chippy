@@ -18,47 +18,47 @@ import (
 
 // VM represents the chip-8 virtual machine
 type VM struct {
-	opcode     uint16      // current opcode
-	memory     [4096]byte  // the VM's memory -> see more on this up top
-	v          [16]byte    // 8-bit general purpose register, (V0 - VE*)
-	i          uint16      // index register (0x000 to 0xFFF)
-	pc         uint16      // program counter (0x000 to 0xFFF)
-	stack      [16]uint16  // stack for instructions
-	sp         uint16      // stack pointer
-	gfx        [32][8]byte // represents the screen pixels
-	delayTimer byte        // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
-	soundTimer byte        // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
-	clockSpeed uint16      // "cpu" clock speed
-	timerSpeed uint16      // timer speed
-	keypad     [16]byte    // HEX based: 0x0-0xF
+	opcode     uint16        // current opcode
+	memory     [4096]byte    // the VM's memory -> see more on this up top
+	v          [16]byte      // 8-bit general purpose register, (V0 - VE*)
+	i          uint16        // index register (0x000 to 0xFFF)
+	pc         uint16        // program counter (0x000 to 0xFFF)
+	stack      [16]uint16    // stack for instructions
+	sp         uint16        // stack pointer
+	gfx        [64 * 32]byte // represents the screen pixels
+	delayTimer byte          // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
+	soundTimer byte          // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
+	clockSpeed uint16        // "cpu" clock speed
+	timerSpeed uint16        // timer speed
+	key        [16]byte      // HEX based: 0x0-0xF
+	drawFlag   bool          // system doesn't draw every cycle, set a draw flag when we need to update our screen.
 }
 
-// NewVM returns a pointer to a new VM with the dislpay's font set initialized in the first 80 bytes
-func NewVM() *VM {
-	var memory [4096]byte
-	for i := 0; i < display.FontOffset; i++ {
-		memory[i] = display.FontSet[i]
+// NewVM handles initializing a VM, loading the font set into memory, and loading the ROM into memory
+func NewVM(pathToROM string) (*VM, error) {
+	vm := VM{
+		memory: [4096]byte{},
+		v:      [16]byte{},
+		pc:     0x200,
+		stack:  [16]uint16{},
+		gfx:    [64 * 32]byte{}, // or [32][8]byte{}? Decide later when I understand the display better how I want to set this up
+		key:    [16]byte{},
 	}
+	vm.loadFontSet()
+	if err := vm.loadROM(pathToROM); err != nil {
+		return nil, err
+	}
+	return &vm, nil
+}
 
-	return &VM{
-		opcode:     0,
-		memory:     memory,
-		v:          [16]byte{},
-		i:          0,
-		pc:         0x200, // From the spec -> more detail on why at the top
-		stack:      [16]uint16{},
-		sp:         0,
-		gfx:        [32][8]byte{},
-		delayTimer: 0,
-		soundTimer: 0,
-		clockSpeed: 0,
-		timerSpeed: 0,
-		keypad:     [16]byte{},
+// load the dislpay's font set into the first 80 bytes of the vm's memory
+func (vm *VM) loadFontSet() {
+	for i := 0; i < 80; i++ {
+		vm.memory[i] = display.FontSet[i]
 	}
 }
 
-// LoadROM takes a path argument, finds the ROM, and loads it onto the VM
-func (vm *VM) LoadROM(path string) error {
+func (vm *VM) loadROM(path string) error {
 	rom, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (vm *VM) LoadROM(path string) error {
 		panic("error: rom too large. Max size: 3584")
 	}
 	for i := 0; i < len(rom); i++ {
-		vm.memory[display.FontOffset+i] = rom[i]
+		vm.memory[0x50+i] = rom[i]
 	}
 	return nil
 }
