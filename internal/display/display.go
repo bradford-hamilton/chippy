@@ -4,8 +4,12 @@ package display
 // Drawing is done in XOR mode and if a pixel is turned off as a result of drawing, the VF register is set.
 // This is used for collision detection.
 
+// FontOffset is the size of our FontSet in bytes.
+// This helps tell a better story in parts of the VM
+const FontOffset = 80
+
 // FontSet describes
-var FontSet = [80]byte{
+var FontSet = [FontOffset]byte{
 	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 	0x20, 0x60, 0x20, 0x20, 0x70, // 1
 	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2

@@ -1,6 +1,10 @@
 package chip8
 
-import "github.com/bradford-hamilton/chippy/internal/display"
+import (
+	"io/ioutil"
+
+	"github.com/bradford-hamilton/chippy/internal/display"
+)
 
 // system memory map
 // 0x000-0x1FF - Chip 8 interpreter (contains font set in emu, more on that below)
@@ -32,7 +36,7 @@ type VM struct {
 // NewVM returns a pointer to a new VM with the dislpay's font set initialized in the first 80 bytes
 func NewVM() *VM {
 	var memory [4096]byte
-	for i := 0; i < 80; i++ {
+	for i := 0; i < display.FontOffset; i++ {
 		memory[i] = display.FontSet[i]
 	}
 
@@ -51,4 +55,19 @@ func NewVM() *VM {
 		timerSpeed: 0,
 		keypad:     [16]byte{},
 	}
+}
+
+// LoadROM takes a path argument, finds the ROM, and loads it onto the VM
+func (vm *VM) LoadROM(path string) error {
+	rom, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if len(rom) >= 3585 {
+		panic("error: rom too large. Max size: 3584")
+	}
+	for i := 0; i < len(rom); i++ {
+		vm.memory[display.FontOffset+i] = rom[i]
+	}
+	return nil
 }

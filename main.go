@@ -2,14 +2,27 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/bradford-hamilton/chippy/internal/chip8"
 )
 
 func main() {
-	// make this a CLI
+	// Define and parse flags
+	// option := flag.String("option", "", "please provide an option")
+	// flag.Parse()
+	if len(os.Args) != 2 {
+		fmt.Println("incorrect usage. Usage: `chippy path/to/rom`")
+		return
+	}
+	pathToROM := os.Args[1]
+
 	vm := chip8.NewVM()
-	fmt.Println(vm)
+
+	if err := vm.LoadROM(pathToROM); err != nil {
+		fmt.Printf("\nerror loading ROM: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Setup the graphics (window size, display mode, etc)
 	// setupGraphics()
