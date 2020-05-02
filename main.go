@@ -20,22 +20,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(vm)
-
 	// Setup the graphics (window size, display mode, etc)
 	// display.setupGraphics() ?
 
 	// setup input system (bind callbacks)
 	// keypad.setupInput() ?
 
-	// emulation loop sudo code:
-	//	   for {
-	//          chip8.emulateCycle() // Fetch Opcode, Decode Opcode, Execute Opcode, Update timers
-	//
-	//          if drawFlag {
-	//                drawGraphics()
-	//          }
-	//
-	//          chip8.setKeys() // If we press or release a key, we should store this state in the part that emulates the keypad
-	//	   }
+	for {
+		// Fetch Opcode, Decode Opcode, Execute Opcode, Update timers
+		vm.EmulateCycle()
+
+		// if drawFlag {
+		// 	drawGraphics()
+		// }
+
+		// chip8.setKeys() // If we press or release a key, we should store this state in the part that emulates the keypad
+	}
 }

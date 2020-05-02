@@ -1,6 +1,7 @@
 package chip8
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	"github.com/bradford-hamilton/chippy/internal/display"
@@ -71,6 +72,127 @@ func (vm *VM) loadROM(path string) error {
 	}
 	return nil
 }
+
+// EmulateCycle will handle fetch, decode, and execute for a chip-8 VM
+func (vm *VM) EmulateCycle() {
+	// One opcode is 2 bytes long, ex. 0xA2FO we will need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them to
+	// get the actual opcode. First we shift current instruction (ex. 10100010) left 8 which would look like 1010001000000000.
+	// Then OR it with the upcoming byte which gives us a 16 bit chunk containing the combined bytes
+
+	// TODO: comeback and think about endianness
+	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
+	vm.drawFlag = false
+	vm.parseOpcode()
+}
+
+func (vm *VM) parseOpcode() {
+	switch vm.opcode & 0xF000 {
+	// 0NNN -> Execute machine language subroutine at address NNN
+	case 0x0000:
+		switch vm.opcode & 0x00FF {
+		case 0x00E0:
+			// 00E0 -> Clear the screen
+		case 0x00EE:
+			// 00EE -> Return from a subroutine.
+		default:
+			// vm.pc += 2
+			// default: I don't think it's an error here but double check
+		}
+	case 0x1000:
+		// 1NNN -> Jump to address NNN
+	case 0x2000:
+		// 2NNN -> Execute subroutine starting at address NNN
+	case 0x3000:
+		// 3XNN -> Skip the following instruction if the value of register VX == NN
+	case 0x4000:
+		// 4XNN -> Skip the following instruction if the value of register VX != NN
+	case 0x5000:
+		// 5XY0 -> Skip the following instruction if the value of register VX == VY
+	case 0x6000:
+		// 6XNN -> Store number NN in register VX
+	case 0x7000:
+		// 7XNN -> Add the value NN to register VX
+	case 0x8000:
+		switch vm.opcode & 0x000F {
+		case 0x0000:
+			// 8XYO -> Store the value of register VY in register VX
+		case 0x0001:
+			// 8XY1 -> Set VX to VX OR VY
+		case 0x0002:
+			// 8XY2 -> Set VX to VX AND VY
+		case 0x0003:
+			// 8XY3 -> Set VX to VX XOR VY
+		case 0x0004:
+			// 8XY4 -> Add the value of register VY to register VX
+			// Set VF to 01 if a carry occurs
+			// Set VF to 00 if a carry does not occur
+		case 0x0005:
+			// 8XY5 -> Subtract the value of register VY from register VX
+			// Set VF to 00 if a borrow occurs
+			// Set VF to 01 if a borrow does not occur
+		case 0x0006:
+			// 8XY6 -> Store the value of register VY shifted right one bit in register VX
+			// Set register VF to the least significant bit prior to the shift
+		case 0x0007:
+			// 8XY7 -> Set register VX to the value of VY minus VX
+			// Set VF to 00 if a borrow occurs
+			// Set VF to 01 if a borrow does not occur
+		case 0x000E:
+			// 8XYE -> Store the value of register VY shifted left one bit in register VX
+			// Set register VF to the most significant bit prior to the shift
+		default:
+			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x000F)
+		}
+	case 0x9000:
+		// 9XY0 -> Skip the following instruction if the value of VX != value of VY
+	case 0xA000:
+		// ANNN	-> Store memory address NNN in register I
+	case 0xB000:
+		// BNNN	-> Jump to address NNN + V0
+	case 0xC000:
+		// CXNN	-> Set VX to a random number with a mask of NN
+	case 0xD000:
+		// DXYN	-> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I
+		// Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
+	case 0xE000:
+		switch vm.opcode & 0x00FF {
+		case 0x009E:
+			// EX9E	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
+		case 0x00A1:
+			// EXA1	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
+		default:
+			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+		}
+	case 0xF000:
+		switch vm.opcode & 0x00FF {
+		case 0x0007:
+			// FX07 -> Store the current value of the delay timer in register VX
+		case 0x000A:
+			// FX0A -> Wait for a keypress and store the result in register VX
+		case 0x0015:
+			// FX15 -> Set the delay timer to the value of register VX
+		case 0x0018:
+			// FX18 -> Set the sound timer to the value of register VX
+		case 0x001E:
+			// FX1E -> Add the value stored in register VX to register I
+		case 0x0029:
+			// FX29 -> Set I to the memory address of the sprite data corresponding to the hexadecimal digit stored in register VX
+		case 0x0033:
+			// FX33 -> Store the binary-coded decimal equivalent of the value stored in register VX at addresses I, I+1, and I+2
+		case 0x0055:
+			// FX55 -> Store the values of registers V0 to VX inclusive in memory starting at address I
+			// I is set to I + X + 1 after operation
+		case 0x0065:
+			// FX65 -> Fill registers V0 to VX inclusive with the values stored in memory starting at address I
+			// I is set to I + X + 1 after operation
+		default:
+			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+		}
+	default:
+		fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+	}
+}
+
 func (vm *VM) debug() {
 	fmt.Printf(`
 opcode: %x
