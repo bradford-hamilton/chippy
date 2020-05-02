@@ -3,11 +3,22 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/bradford-hamilton/chippy/internal/chip8"
+	"github.com/bradford-hamilton/chippy/internal/pixel"
+	"github.com/faiface/pixel/pixelgl"
 )
 
+const refreshRate = 60
+
 func main() {
+	// pixelgl needs access to the main thread so this pattern is suggested
+	// will revisit once things are working
+	pixelgl.Run(runMain)
+}
+
+func runMain() {
 	if len(os.Args) != 2 {
 		fmt.Println("incorrect usage. Usage: `chippy path/to/rom`")
 		os.Exit(1)
@@ -20,20 +31,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Setup the graphics (window size, display mode, etc)
-	// display.setupGraphics() ?
+	win, err := pixel.NewWindow()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	// setup input system (bind callbacks)
-	// keypad.setupInput() ?
+	// maybe handle beeps here
 
-	for {
-		// Fetch Opcode, Decode Opcode, Execute Opcode, Update timers
-		vm.EmulateCycle()
+	ticker := time.NewTicker(time.Second / refreshRate)
+	defer ticker.Stop()
 
-		// if drawFlag {
-		// 	drawGraphics()
-		// }
+	for range ticker.C {
+		if !win.Closed() {
+			// fetch, decode, and execute opcode and update timers
+			vm.EmulateCycle()
 
-		// chip8.setKeys() // If we press or release a key, we should store this state in the part that emulates the keypad
+			if vm.DrawFlag() {
+				win.DrawGraphics(vm.GetGraphics())
+			} else {
+				win.UpdateInput()
+			}
+
+			win.HandleKeyInput() // If we press or release a key, we should store this state in the part that emulates the keypad
+
+			continue
+		}
+
+		fmt.Println("exit signal detected, gracefully shutting down...")
+		break
 	}
 }
