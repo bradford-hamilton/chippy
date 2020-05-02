@@ -3,14 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/bradford-hamilton/chippy/internal/chip8"
 	"github.com/bradford-hamilton/chippy/internal/pixel"
 	"github.com/faiface/pixel/pixelgl"
 )
-
-const refreshRate = 60
 
 func main() {
 	// pixelgl needs access to the main thread so this pattern is suggested
@@ -25,40 +22,54 @@ func runMain() {
 	}
 	pathToROM := os.Args[1]
 
-	vm, err := chip8.NewVM(pathToROM)
-	if err != nil {
-		fmt.Printf("\nerror creating a new chip-8 VM: %v\n", err)
-		os.Exit(1)
-	}
-
-	win, err := pixel.NewWindow()
+	w, err := pixel.NewWindow()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
+	vm, err := chip8.NewVM(pathToROM, w)
+	if err != nil {
+		fmt.Printf("\nerror creating a new chip-8 VM: %v\n", err)
+		os.Exit(1)
+	}
+
 	// maybe handle beeps here
 
-	ticker := time.NewTicker(time.Second / refreshRate)
-	defer ticker.Stop()
+	// Emulate a clock speed of 60MHz
+	for {
+		select {
+		case <-vm.Clock.C:
+			if !vm.Window.Closed() {
+				vm.EmulateCycle()
 
-	for range ticker.C {
-		if !win.Closed() {
-			// fetch, decode, and execute opcode and update timers
-			vm.EmulateCycle()
+				if vm.DrawFlag() {
+					vm.Window.DrawGraphics(vm.GetGraphics())
+				} else {
+					vm.Window.UpdateInput()
+				}
 
-			if vm.DrawFlag() {
-				win.DrawGraphics(vm.GetGraphics())
-			} else {
-				win.UpdateInput()
+				vm.HandleKeyInput()
+
+				if vm.DelayTimer > 0 {
+					vm.DelayTimer--
+				}
+				if vm.SoundTimer > 0 {
+					if vm.SoundTimer == 1 {
+						// Ensure we don't block if the go routine is not ready
+						select {
+						case vm.BeepChan <- struct{}{}:
+						default:
+						}
+					}
+					vm.SoundTimer--
+				}
+				continue
 			}
 
-			win.HandleKeyInput() // If we press or release a key, we should store this state in the part that emulates the keypad
-
-			continue
+			fmt.Println("exit signal detected, gracefully shutting down...")
+			goto afterLoop
 		}
-
-		fmt.Println("exit signal detected, gracefully shutting down...")
-		break
 	}
+afterLoop:
 }

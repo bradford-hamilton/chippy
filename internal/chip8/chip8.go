@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"time"
 
 	"github.com/bradford-hamilton/chippy/internal/pixel"
 )
@@ -28,23 +29,30 @@ type VM struct {
 	stack      [16]uint16    // stack for instructions
 	sp         uint16        // stack pointer
 	gfx        [64 * 32]byte // represents the screen pixels
-	delayTimer byte          // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
-	soundTimer byte          // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
-	clockSpeed uint16        // "cpu" clock speed
-	timerSpeed uint16        // timer speed
+	DelayTimer byte          // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
+	SoundTimer byte          // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
 	key        [16]byte      // HEX based: 0x0-0xF
 	drawFlag   bool          // system doesn't draw every cycle, set a draw flag when we need to update our screen.
+	Window     *pixel.Window
+	Clock      *time.Ticker
+	BeepChan   chan struct{}
 }
 
+const keyRepeatDur = time.Second / 5
+const refreshRate = 180
+
 // NewVM handles initializing a VM, loading the font set into memory, and loading the ROM into memory
-func NewVM(pathToROM string) (*VM, error) {
+func NewVM(pathToROM string, window *pixel.Window) (*VM, error) {
 	vm := VM{
-		memory: [4096]byte{},
-		v:      [16]byte{},
-		pc:     0x200,
-		stack:  [16]uint16{},
-		gfx:    [64 * 32]byte{},
-		key:    [16]byte{},
+		memory:   [4096]byte{},
+		v:        [16]byte{},
+		pc:       0x200,
+		stack:    [16]uint16{},
+		gfx:      [64 * 32]byte{},
+		key:      [16]byte{},
+		Window:   window,
+		Clock:    time.NewTicker(time.Second / refreshRate),
+		BeepChan: make(chan struct{}),
 	}
 	vm.loadFontSet()
 	if err := vm.loadROM(pathToROM); err != nil {
@@ -80,22 +88,20 @@ func (vm *VM) EmulateCycle() {
 	// One opcode is 2 bytes long, ex. 0xA2FO we will need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them to
 	// get the actual opcode. First we shift current instruction (ex. 10100010) left 8 which would look like 1010001000000000.
 	// Then OR it with the upcoming byte which gives us a 16 bit chunk containing the combined bytes
-
-	// TODO: comeback and think about endianness
 	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
 	vm.drawFlag = false
-	vm.parseOpcode()
+
+	if err := vm.parseOpcode(); err != nil {
+		fmt.Printf("error parsing opcode: %v", err)
+	}
 }
 
-func (vm *VM) parseOpcode() {
+func (vm *VM) parseOpcode() error {
 	// Decode Vx & Vy register identifiers.
 	x := (vm.opcode & 0x0F00) >> 8
 	y := (vm.opcode & 0x00F0) >> 4
 	nn := byte(vm.opcode & 0x00FF) // load last 8-bits
 	nnn := vm.opcode & 0x0FFF      // load last 12-bits
-
-	// TODO: remove when no longer necessary
-	fmt.Printf("x: %x\ny: %x\nnnn: %x\nnn: %d\n", x, y, nnn, nn)
 
 	switch vm.opcode & 0xF000 {
 	// 0NNN -> Execute machine language subroutine at address NNN
@@ -110,7 +116,7 @@ func (vm *VM) parseOpcode() {
 			vm.pc = vm.stack[vm.sp] + 2
 			vm.sp--
 		default:
-			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
 		}
 	case 0x1000:
 		// 1NNN -> Jump to address NNN
@@ -213,7 +219,7 @@ func (vm *VM) parseOpcode() {
 			vm.v[0xF] = vm.v[y] & 0x80
 			vm.pc += 2
 		default:
-			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x000F)
+			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x000F)
 		}
 	case 0x9000:
 		// 9XY0 -> Skip the following instruction if the value of VX != value of VY
@@ -244,14 +250,14 @@ func (vm *VM) parseOpcode() {
 		height := vm.opcode & 0x000F
 		vm.v[0xF] = 0
 
-		for yPoint := uint16(0); yPoint < height; yPoint++ {
-			pix = uint16(vm.memory[vm.i+yPoint])
-			for xPoint := uint16(0); xPoint < 8; xPoint++ {
-				ind := (x + xPoint + ((y + yPoint) * 64))
-				if ind > uint16(len(vm.GetGraphics())) {
+		for yLine := uint16(0); yLine < height; yLine++ {
+			pix = uint16(vm.memory[vm.i+yLine])
+			for xLine := uint16(0); xLine < 8; xLine++ {
+				ind := (x + xLine + ((y + yLine) * 64))
+				if ind >= uint16(len(vm.GetGraphics())) {
 					continue
 				}
-				if (pix & (0x80 >> xPoint)) != 0 {
+				if (pix & (0x80 >> xLine)) != 0 {
 					if vm.GetGraphics()[ind] == 1 {
 						vm.v[0xF] = 1
 					}
@@ -281,13 +287,13 @@ func (vm *VM) parseOpcode() {
 				vm.pc += 2
 			}
 		default:
-			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
 		}
 	case 0xF000:
 		switch vm.opcode & 0x00FF {
 		case 0x0007:
 			// FX07 -> Store the current value of the delay timer in register VX
-			vm.v[x] = vm.delayTimer
+			vm.v[x] = vm.DelayTimer
 			vm.pc += 2
 		case 0x000A:
 			// FX0A -> Wait for a keypress and store the result in register VX
@@ -301,11 +307,11 @@ func (vm *VM) parseOpcode() {
 			vm.key[vm.v[x]] = 0
 		case 0x0015:
 			// FX15 -> Set the delay timer to the value of register VX
-			vm.delayTimer = vm.v[x]
+			vm.DelayTimer = vm.v[x]
 			vm.pc += 2
 		case 0x0018:
 			// FX18 -> Set the sound timer to the value of register VX
-			vm.soundTimer = vm.v[x]
+			vm.SoundTimer = vm.v[x]
 			vm.pc += 2
 		case 0x001E:
 			// FX1E -> Add the value stored in register VX to register I
@@ -336,11 +342,12 @@ func (vm *VM) parseOpcode() {
 			}
 			vm.pc += 2
 		default:
-			fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
 		}
 	default:
-		fmt.Printf("unknown opcode: %x\n", vm.opcode&0x00FF)
+		return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
 	}
+	return nil
 }
 
 // GetGraphics TODO: doc
@@ -351,6 +358,39 @@ func (vm *VM) GetGraphics() [64 * 32]byte {
 // DrawFlag TODO: doc
 func (vm *VM) DrawFlag() bool {
 	return vm.drawFlag
+}
+
+// SetKeyDown marks the specified key as down.
+// Once read, the key state will be reset to up
+func (vm *VM) SetKeyDown(index byte) {
+	vm.key[index] = 1
+}
+
+// HandleKeyInput TODO: doc
+func (vm *VM) HandleKeyInput() {
+	for i, key := range vm.Window.KeyMap {
+		if vm.Window.JustReleased(key) {
+			if vm.Window.KeysDown[i] != nil {
+				vm.Window.KeysDown[i].Stop()
+				vm.Window.KeysDown[i] = nil
+			}
+		} else if vm.Window.JustPressed(key) {
+			if vm.Window.KeysDown[i] == nil {
+				vm.Window.KeysDown[i] = time.NewTicker(keyRepeatDur)
+			}
+			vm.SetKeyDown(byte(i))
+		}
+
+		if vm.Window.KeysDown[i] == nil {
+			continue
+		}
+
+		select {
+		case <-vm.Window.KeysDown[i].C:
+			vm.SetKeyDown(byte(i))
+		default:
+		}
+	}
 }
 
 func (vm *VM) debug() {
