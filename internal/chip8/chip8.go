@@ -71,3 +71,34 @@ func (vm *VM) loadROM(path string) error {
 	}
 	return nil
 }
+func (vm *VM) debug() {
+	fmt.Printf(`
+opcode: %x
+pc: %d
+sp: %d
+i: %d
+
+Registers:
+V0: %d
+V1: %d
+V2: %d
+V3: %d
+V4: %d
+V5: %d
+V6: %d
+V7: %d
+V8: %d
+V9: %d
+VA: %d
+VB: %d
+VC: %d
+VD: %d
+VE: %d
+VF: %d`,
+		vm.opcode, vm.pc, vm.sp, vm.i,
+		vm.v[0], vm.v[1], vm.v[2], vm.v[3],
+		vm.v[4], vm.v[5], vm.v[6], vm.v[7],
+		vm.v[8], vm.v[9], vm.v[10], vm.v[11],
+		vm.v[12], vm.v[13], vm.v[14], vm.v[15],
+	)
+}
