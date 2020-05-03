@@ -145,7 +145,7 @@ func (vm *VM) parseOpcode() error {
 			vm.pc = vm.stack[vm.sp] + 2
 			vm.sp--
 		default:
-			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
+			return vm.unknownOp(vm.opcode & 0x00FF)
 		}
 	case 0x1000: // 1NNN -> Jump to address NNN
 		vm.pc = nnn
@@ -232,7 +232,7 @@ func (vm *VM) parseOpcode() error {
 			vm.v[0xF] = vm.v[y] & 0x80
 			vm.pc += 2
 		default:
-			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x000F)
+			return vm.unknownOp(vm.opcode & 0x000F)
 		}
 	case 0x9000: // 9XY0 -> Skip the following instruction if the value of VX != value of VY
 		if vm.v[x] != vm.v[y] {
@@ -295,7 +295,7 @@ func (vm *VM) parseOpcode() error {
 				vm.pc += 2
 			}
 		default:
-			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
+			return vm.unknownOp(vm.opcode & 0x00FF)
 		}
 	case 0xF000:
 		switch vm.opcode & 0x00FF {
@@ -330,8 +330,8 @@ func (vm *VM) parseOpcode() error {
 			vm.pc += 2
 		case 0x0055: // FX55 -> Store the values of registers V0 to VX inclusive in memory starting at address i
 			// i is set to i+x+1 after operation
-			for i := uint16(0); i <= x; i++ {
-				vm.memory[vm.i+i] = vm.v[i]
+			for ind := uint16(0); ind <= x; ind++ {
+				vm.memory[vm.i+ind] = vm.v[ind]
 			}
 			vm.pc += 2
 		case 0x0065: // FX65 -> Fill registers V0 to VX inclusive with the values stored in memory starting at address i
@@ -341,10 +341,10 @@ func (vm *VM) parseOpcode() error {
 			}
 			vm.pc += 2
 		default:
-			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
+			return vm.unknownOp(vm.opcode & 0x00FF)
 		}
 	default:
-		return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
+		return vm.unknownOp(vm.opcode & 0x00FF)
 	}
 	return nil
 }
@@ -357,13 +357,15 @@ func (vm *VM) setKeyDown(index byte) {
 	vm.key[index] = 1
 }
 
+func (vm *VM) unknownOp(opcode uint16) error {
+	return fmt.Errorf("unknown opcode: %x", opcode)
+}
+
 func (vm *VM) handleKeyInput() {
 	for i, key := range vm.window.KeyMap {
-		if vm.window.JustReleased(key) {
-			if vm.window.KeysDown[i] != nil {
-				vm.window.KeysDown[i].Stop()
-				vm.window.KeysDown[i] = nil
-			}
+		if vm.window.JustReleased(key) && vm.window.KeysDown[i] != nil {
+			vm.window.KeysDown[i].Stop()
+			vm.window.KeysDown[i] = nil
 		} else if vm.window.JustPressed(key) {
 			if vm.window.KeysDown[i] == nil {
 				vm.window.KeysDown[i] = time.NewTicker(keyRepeatDur)
@@ -459,10 +461,8 @@ VC: %d
 VD: %d
 VE: %d
 VF: %d`,
-		vm.opcode, vm.pc, vm.sp, vm.i,
-		vm.v[0], vm.v[1], vm.v[2], vm.v[3], vm.v[4],
-		vm.v[5], vm.v[6], vm.v[7], vm.v[8], vm.v[9],
-		vm.v[10], vm.v[11], vm.v[12], vm.v[13], vm.v[14],
-		vm.v[15],
+		vm.opcode, vm.pc, vm.sp, vm.i, vm.v[0], vm.v[1], vm.v[2], vm.v[3], vm.v[4],
+		vm.v[5], vm.v[6], vm.v[7], vm.v[8], vm.v[9], vm.v[10], vm.v[11], vm.v[12],
+		vm.v[13], vm.v[14], vm.v[15],
 	)
 }

@@ -85,11 +85,14 @@ func (w *Window) DrawGraphics(gfx [64 * 32]byte) {
 
 	for i := 0; i < 64; i++ {
 		for j := 0; j < 32; j++ {
-			if gfx[(31-j)*64+i] == 1 {
-				imDraw.Push(pixel.V(width*float64(i), height*float64(j)))
-				imDraw.Push(pixel.V(width*float64(i)+width, height*float64(j)+height))
-				imDraw.Rectangle(0)
+			// If the gfx byte in question is turned off,
+			// continue without drawing the rectangle
+			if gfx[(31-j)*64+i] == 0 {
+				continue
 			}
+			imDraw.Push(pixel.V(width*float64(i), height*float64(j)))
+			imDraw.Push(pixel.V(width*float64(i)+width, height*float64(j)+height))
+			imDraw.Rectangle(0)
 		}
 	}
 
