@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/bradford-hamilton/chippy/internal/pixel"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
 )
 
 // system memory map
@@ -390,6 +393,29 @@ func (vm *VM) HandleKeyInput() {
 			vm.SetKeyDown(byte(i))
 		default:
 		}
+	}
+}
+
+// ManageAudio TODO: docs
+func (vm *VM) ManageAudio() {
+	f, err := os.Open("assets/beep.mp3")
+	if err != nil {
+		return
+	}
+
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		return
+	}
+	defer streamer.Close()
+
+	speaker.Init(
+		format.SampleRate,
+		format.SampleRate.N(time.Second/10),
+	)
+
+	for range vm.BeepChan {
+		speaker.Play(streamer)
 	}
 }
 

@@ -34,7 +34,6 @@ var FontSet = [80]byte{
 	0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 }
 
-// constants for the screen pixels and screen size
 const winX float64 = 64
 const winY float64 = 32
 const screenWidth float64 = 1024
@@ -51,7 +50,7 @@ type Window struct {
 // and returning a pointer a Window with an embedded *pixelgl.Window
 func NewWindow() (*Window, error) {
 	cfg := pixelgl.WindowConfig{
-		Title:  "Chip-8",
+		Title:  "chippy",
 		Bounds: pixel.R(0, 0, 1024, 768),
 		VSync:  true,
 	}

@@ -34,7 +34,7 @@ func runMain() {
 		os.Exit(1)
 	}
 
-	// maybe handle beeps here
+	go vm.ManageAudio()
 
 	// Emulate a clock speed of 60MHz
 	for {
@@ -68,8 +68,8 @@ func runMain() {
 			}
 
 			fmt.Println("exit signal detected, gracefully shutting down...")
-			goto afterLoop
+			goto end
 		}
 	}
-afterLoop:
+end:
 }
