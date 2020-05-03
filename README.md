@@ -8,3 +8,5 @@ Current sources:
 - [chip-8 instruction set](http://www.multigesture.net/wp-content/uploads/mirror/goldroad/chip8_instruction_set.shtml)
 - [post by Laurence Muller](http://www.multigesture.net/articles/how-to-write-an-emulator-chip-8-interpreter)
 - [post by Matthew Mikolay](http://mattmik.com/files/chip8/mastering/chip8.html)
+
+![chippy](assets/chippy.png)
