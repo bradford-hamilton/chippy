@@ -76,7 +76,7 @@ func NewWindow() (*Window, error) {
 	}, nil
 }
 
-// DrawGraphics TODO: doc
+// DrawGraphics clears the window and draws a new one based on what pixels in the VM's gfx are turned on
 func (w *Window) DrawGraphics(gfx [64 * 32]byte) {
 	w.Clear(colornames.Black)
 	imDraw := imdraw.New(nil)

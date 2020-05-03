@@ -173,8 +173,8 @@ func (vm *VM) loadROM(path string) error {
 }
 
 // emulateCycle runs a full fetch, decode, and execute cycle.
-// One opcode is 2 bytes long (ex. 0xA2FO) so we need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them to get the actual opcode.
-// First we shift current instruction left 8 (ex. from 10100010 -> 1010001000000000)
+// One opcode is 2 bytes long (ex. 0xA2FO) so we need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them
+// to get the actual opcode. First we shift current instruction left 8 (ex. from 10100010 -> 1010001000000000)
 // Then we OR it with the upcoming byte which gives us a 16 bit chunk containing the combined bytes
 func (vm *VM) emulateCycle() {
 	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
