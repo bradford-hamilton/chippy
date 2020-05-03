@@ -8,5 +8,16 @@ Current sources:
 - [cowgod's chip-8 technical reference](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM)
 - [chip-8 instruction set](http://www.multigesture.net/wp-content/uploads/mirror/goldroad/chip8_instruction_set.shtml)
 - [post by Matthew Mikolay](http://mattmik.com/files/chip8/mastering/chip8.html)
+<br/>
+<br/>
+---
 
-![chippy](assets/chippy.png)
+Pong
+
+![pong](assets/pong.png)
+
+---
+
+Particles
+
+![particles](assets/particles.png)
