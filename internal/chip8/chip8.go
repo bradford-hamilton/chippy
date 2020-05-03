@@ -12,7 +12,7 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-// system memory map
+// System memory map
 // 0x000-0x1FF - Chip 8 interpreter (contains font set in emu, more on that below)
 // 0x050-0x0A0 - Used for the built in 4x5 pixel font set (0-F)
 // 0x200-0xFFF - Program ROM and work RAM
@@ -42,7 +42,7 @@ type VM struct {
 }
 
 const keyRepeatDur = time.Second / 5
-const refreshRate = 180
+const refreshRate = 60
 
 // NewVM handles initializing a VM, loading the font set into memory, and loading the ROM into memory
 func NewVM(pathToROM string, window *pixel.Window) (*VM, error) {
@@ -86,11 +86,11 @@ func (vm *VM) loadROM(path string) error {
 	return nil
 }
 
-// EmulateCycle will handle fetch, decode, and execute for a chip-8 VM
+// EmulateCycle runs a full fetch, decode, and execute cycle.
+// One opcode is 2 bytes long (ex. 0xA2FO) so we need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them to get the actual opcode.
+// First we shift current instruction left 8 (ex. from 10100010 -> 1010001000000000)
+// Then we OR it with the upcoming byte which gives us a 16 bit chunk containing the combined bytes
 func (vm *VM) EmulateCycle() {
-	// One opcode is 2 bytes long, ex. 0xA2FO we will need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them to
-	// get the actual opcode. First we shift current instruction (ex. 10100010) left 8 which would look like 1010001000000000.
-	// Then OR it with the upcoming byte which gives us a 16 bit chunk containing the combined bytes
 	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
 	vm.drawFlag = false
 
@@ -107,77 +107,62 @@ func (vm *VM) parseOpcode() error {
 	nnn := vm.opcode & 0x0FFF      // load last 12-bits
 
 	switch vm.opcode & 0xF000 {
-	// 0NNN -> Execute machine language subroutine at address NNN
-	case 0x0000:
+	case 0x0000: // 0NNN -> Execute machine language subroutine at address NNN
 		switch vm.opcode & 0x00FF {
-		case 0x00E0:
-			// 00E0 -> Clear the screen
+		case 0x00E0: // 00E0 -> Clear the screen
 			vm.gfx = [64 * 32]byte{}
 			vm.pc += 2
-		case 0x00EE:
-			// 00EE -> Return from a subroutine.
+		case 0x00EE: // 00EE -> Return from a subroutine.
 			vm.pc = vm.stack[vm.sp] + 2
 			vm.sp--
 		default:
 			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x00FF)
 		}
-	case 0x1000:
-		// 1NNN -> Jump to address NNN
+	case 0x1000: // 1NNN -> Jump to address NNN
 		vm.pc = nnn
-	case 0x2000:
-		// 2NNN -> Execute subroutine starting at address NNN
+	case 0x2000: // 2NNN -> Execute subroutine starting at address NNN
 		vm.sp++
 		vm.stack[vm.sp] = vm.pc
 		vm.pc = nnn
-	case 0x3000:
-		// 3XNN -> Skip the following instruction if the value of register VX == NN
+	case 0x3000: // 3XNN -> Skip the following instruction if the value of register VX == NN
 		if vm.v[x] == nn {
 			vm.pc += 4
 		} else {
 			vm.pc += 2
 		}
-	case 0x4000:
-		// 4XNN -> Skip the following instruction if the value of register VX != NN
+	case 0x4000: // 4XNN -> Skip the following instruction if the value of register VX != NN
 		if vm.v[x] != nn {
 			vm.pc += 4
 		} else {
 			vm.pc += 2
 		}
-	case 0x5000:
-		// 5XY0 -> Skip the following instruction if the value of register VX == VY
+	case 0x5000: // 5XY0 -> Skip the following instruction if the value of register VX == VY
 		if vm.v[x] == vm.v[y] {
 			vm.pc += 4
 		} else {
 			vm.pc += 2
 		}
-	case 0x6000:
-		// 6XNN -> Store number NN in register VX
+	case 0x6000: // 6XNN -> Store number NN in register VX
 		vm.v[x] = nn
 		vm.pc += 2
-	case 0x7000:
-		// 7XNN -> Add the value NN to register VX
+	case 0x7000: // 7XNN -> Add the value NN to register VX
 		vm.v[x] += nn
 		vm.pc += 2
 	case 0x8000:
 		switch vm.opcode & 0x000F {
-		case 0x0000:
-			// 8XYO -> Store the value of register VY in register VX
+		case 0x0000: // 8XYO -> Store the value of register VY in register VX
 			vm.v[x] = vm.v[y]
 			vm.pc += 2
-		case 0x0001:
-			// 8XY1 -> Set VX to VX OR VY
+		case 0x0001: // 8XY1 -> Set VX to VX OR VY
 			vm.v[x] |= vm.v[y]
 			vm.pc += 2
-		case 0x0002:
-			// 8XY2 -> Set VX to VX AND VY
+		case 0x0002: // 8XY2 -> Set VX to VX AND VY
 			vm.v[x] &= vm.v[y]
 			vm.pc += 2
-		case 0x0003:
-			// 8XY3 -> Set VX to VX XOR VY
+		case 0x0003: // 8XY3 -> Set VX to VX XOR VY
 			vm.v[x] ^= vm.v[y]
 			vm.pc += 2
-		case 0x0004:
-			// 8XY4 -> Add the value of register VY to register VX
+		case 0x0004: // 8XY4 -> Add the value of register VY to register VX
 			// Set VF to 01 if a carry occurs
 			// Set VF to 00 if a carry does not occur
 			if vm.v[y] > (0xFF - vm.v[x]) {
@@ -187,8 +172,7 @@ func (vm *VM) parseOpcode() error {
 			}
 			vm.v[x] += vm.v[y]
 			vm.pc += 2
-		case 0x0005:
-			// 8XY5 -> Subtract the value of register VY from register VX
+		case 0x0005: // 8XY5 -> Subtract the value of register VY from register VX
 			// Set VF to 00 if a borrow occurs
 			// Set VF to 01 if a borrow does not occur
 			if vm.v[y] > vm.v[x] {
@@ -198,14 +182,12 @@ func (vm *VM) parseOpcode() error {
 			}
 			vm.v[x] -= vm.v[y]
 			vm.pc += 2
-		case 0x0006:
-			// 8XY6 -> Store the value of register VY shifted right one bit in register VX
+		case 0x0006: // 8XY6 -> Store the value of register VY shifted right one bit in register VX
 			// Set register VF to the least significant bit prior to the shift
 			vm.v[x] = vm.v[y] >> 1
 			vm.v[0xF] = vm.v[y] & 0x01
 			vm.pc += 2
-		case 0x0007:
-			// 8XY7 -> Set register VX to the value of VY minus VX
+		case 0x0007: // 8XY7 -> Set register VX to the value of VY minus VX
 			// Set VF to 00 if a borrow occurs
 			// Set VF to 01 if a borrow does not occur
 			if vm.v[x] > vm.v[y] {
@@ -215,8 +197,7 @@ func (vm *VM) parseOpcode() error {
 			}
 			vm.v[x] = vm.v[y] - vm.v[x]
 			vm.pc += 2
-		case 0x000E:
-			// 8XYE -> Store the value of register VY shifted left one bit in register VX
+		case 0x000E: // 8XYE -> Store the value of register VY shifted left one bit in register VX
 			// Set register VF to the most significant bit prior to the shift
 			vm.v[x] = vm.v[y] << 1
 			vm.v[0xF] = vm.v[y] & 0x80
@@ -224,27 +205,22 @@ func (vm *VM) parseOpcode() error {
 		default:
 			return fmt.Errorf("unknown opcode: %x", vm.opcode&0x000F)
 		}
-	case 0x9000:
-		// 9XY0 -> Skip the following instruction if the value of VX != value of VY
+	case 0x9000: // 9XY0 -> Skip the following instruction if the value of VX != value of VY
 		if vm.v[x] != vm.v[y] {
 			vm.pc += 4
 		} else {
 			vm.pc += 2
 		}
-	case 0xA000:
-		// ANNN	-> Store memory address NNN in register I
+	case 0xA000: // ANNN -> Store memory address NNN in index register
 		vm.i = nnn
 		vm.pc += 2
-	case 0xB000:
-		// BNNN	-> Jump to address NNN + V0
+	case 0xB000: // BNNN -> Jump to address NNN + V0
 		vm.pc = nnn + uint16(vm.v[0])
 		vm.pc += 2
-	case 0xC000:
-		// CXNN	-> Set VX to a random number with a mask of NN
+	case 0xC000: // CXNN -> Set VX to a random number with a mask of NN
 		vm.v[x] = byte(rand.Float32()*255) & nn
 		vm.pc += 2
-	case 0xD000:
-		// DXYN	-> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I
+	case 0xD000: // DXYN -> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in index register
 		// Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
 		x = uint16(vm.v[x])
 		y = uint16(vm.v[y])
@@ -273,16 +249,14 @@ func (vm *VM) parseOpcode() error {
 		vm.pc += 2
 	case 0xE000:
 		switch vm.opcode & 0x00FF {
-		case 0x009E:
-			// EX9E	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
+		case 0x009E: // EX9E	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
 			if vm.key[vm.v[x]] != 0 {
 				vm.pc += 4
 				vm.key[vm.v[x]] = 0
 			} else {
 				vm.pc += 2
 			}
-		case 0x00A1:
-			// EXA1	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
+		case 0x00A1: // EXA1	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
 			if vm.key[vm.v[x]] != 0 {
 				vm.pc += 4
 			} else {
@@ -294,12 +268,10 @@ func (vm *VM) parseOpcode() error {
 		}
 	case 0xF000:
 		switch vm.opcode & 0x00FF {
-		case 0x0007:
-			// FX07 -> Store the current value of the delay timer in register VX
+		case 0x0007: // FX07 -> Store the current value of the delay timer in register VX
 			vm.v[x] = vm.DelayTimer
 			vm.pc += 2
-		case 0x000A:
-			// FX0A -> Wait for a keypress and store the result in register VX
+		case 0x000A: // FX0A -> Wait for a keypress and store the result in register VX
 			for i, k := range vm.key {
 				if k != 0 {
 					vm.v[x] = byte(i)
@@ -308,40 +280,33 @@ func (vm *VM) parseOpcode() error {
 				}
 			}
 			vm.key[vm.v[x]] = 0
-		case 0x0015:
-			// FX15 -> Set the delay timer to the value of register VX
+		case 0x0015: // FX15 -> Set the delay timer to the value of register VX
 			vm.DelayTimer = vm.v[x]
 			vm.pc += 2
-		case 0x0018:
-			// FX18 -> Set the sound timer to the value of register VX
+		case 0x0018: // FX18 -> Set the sound timer to the value of register VX
 			vm.SoundTimer = vm.v[x]
 			vm.pc += 2
-		case 0x001E:
-			// FX1E -> Add the value stored in register VX to register I
+		case 0x001E: // FX1E -> Add the value stored in register VX to index register
 			vm.i += uint16(vm.v[x])
 			vm.pc += 2
-		case 0x0029:
-			// FX29 -> Set I to the memory address of the sprite data corresponding to the hexadecimal digit stored in register VX
+		case 0x0029: // FX29 -> Set index register to the memory address of the sprite data corresponding to the hexadecimal digit stored in register VX
 			vm.i = uint16(vm.v[x]) * 5
 			vm.pc += 2
-		case 0x0033:
-			// FX33 -> Store the binary-coded decimal equivalent of the value stored in register VX at addresses I, I+1, and I+2
+		case 0x0033: // FX33 -> Store the binary-coded decimal equivalent of the value stored in register VX at addresses i, i+1, and i+2
 			vm.memory[vm.i] = vm.v[x] / 100
 			vm.memory[vm.i+1] = (vm.v[x] / 10) % 10
 			vm.memory[vm.i+2] = (vm.v[x] % 100) % 10
 			vm.pc += 2
-		case 0x0055:
-			// FX55 -> Store the values of registers V0 to VX inclusive in memory starting at address I
-			// I is set to I + X + 1 after operation
+		case 0x0055: // FX55 -> Store the values of registers V0 to VX inclusive in memory starting at address i
+			// i is set to i+x+1 after operation
 			for i := uint16(0); i <= x; i++ {
 				vm.memory[vm.i+i] = vm.v[i]
 			}
 			vm.pc += 2
-		case 0x0065:
-			// FX65 -> Fill registers V0 to VX inclusive with the values stored in memory starting at address I
-			// I is set to I + X + 1 after operation
-			for i := uint16(0); i <= x; i++ {
-				vm.v[i] = vm.memory[vm.i+i]
+		case 0x0065: // FX65 -> Fill registers V0 to VX inclusive with the values stored in memory starting at address i
+			// i is set to i+x+1 after operation
+			for ind := uint16(0); ind <= x; ind++ {
+				vm.v[ind] = vm.memory[vm.i+ind]
 			}
 			vm.pc += 2
 		default:
@@ -360,7 +325,9 @@ func (vm *VM) GetGraphics() [64 * 32]byte {
 
 // DrawFlag TODO: doc
 func (vm *VM) DrawFlag() bool {
-	return vm.drawFlag
+	f := vm.drawFlag
+	// vm.drawFlag = false may need to "read" this and set to false
+	return f
 }
 
 // SetKeyDown marks the specified key as down.
