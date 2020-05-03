@@ -24,38 +24,46 @@ import (
 
 // VM represents the chip-8 virtual machine
 type VM struct {
-	opcode     uint16        // current opcode
-	memory     [4096]byte    // the VM's memory -> see more on this up top
+	opcode     uint16        // opcode under examination
+	memory     [4096]byte    // VM memory -> see more on this at the top
 	v          [16]byte      // 8-bit general purpose register, (V0 - VE*)
 	i          uint16        // index register (0x000 to 0xFFF)
 	pc         uint16        // program counter (0x000 to 0xFFF)
 	stack      [16]uint16    // stack for instructions
 	sp         uint16        // stack pointer
-	gfx        [64 * 32]byte // represents the screen pixels
-	DelayTimer byte          // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
-	SoundTimer byte          // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
+	gfx        [64 * 32]byte // represents the windows pixels
+	delayTimer byte          // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
+	soundTimer byte          // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
 	key        [16]byte      // HEX based: 0x0-0xF
-	drawFlag   bool          // system doesn't draw every cycle, set a draw flag when we need to update our screen.
-	Window     *pixel.Window
-	Clock      *time.Ticker
-	BeepChan   chan struct{}
+	drawFlag   bool          // doesn't draw on every cycle, set draw flag when we need to update screen.
+	window     *pixel.Window
+	Clock      *time.Ticker  // "CPU clock"
+	audioChan  chan struct{} // channel for pushing audio events
+	Shutdown   chan struct{} // shutdown signal channel
 }
 
 const keyRepeatDur = time.Second / 5
-const refreshRate = 60
+const refreshRate = 300
 
-// NewVM handles initializing a VM, loading the font set into memory, and loading the ROM into memory
-func NewVM(pathToROM string, window *pixel.Window) (*VM, error) {
+// NewVM initializes a Window and a VM, loads the font set and the
+// ROM into memory, and returns a pointer to the VM or an error
+func NewVM(pathToROM string) (*VM, error) {
+	window, err := pixel.NewWindow()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	vm := VM{
-		memory:   [4096]byte{},
-		v:        [16]byte{},
-		pc:       0x200,
-		stack:    [16]uint16{},
-		gfx:      [64 * 32]byte{},
-		key:      [16]byte{},
-		Window:   window,
-		Clock:    time.NewTicker(time.Second / refreshRate),
-		BeepChan: make(chan struct{}),
+		memory:    [4096]byte{},
+		v:         [16]byte{},
+		pc:        0x200,
+		stack:     [16]uint16{},
+		gfx:       [64 * 32]byte{},
+		key:       [16]byte{},
+		window:    window,
+		Clock:     time.NewTicker(time.Second / refreshRate),
+		audioChan: make(chan struct{}),
+		Shutdown:  make(chan struct{}),
 	}
 	vm.loadFontSet()
 	if err := vm.loadROM(pathToROM); err != nil {
@@ -64,7 +72,28 @@ func NewVM(pathToROM string, window *pixel.Window) (*VM, error) {
 	return &vm, nil
 }
 
-// load the dislpay's font set into the first 80 bytes of the vm's memory
+// Run starts the vm and emulates a clock that runs by default at 60MHz
+// This can be changed with a flag.
+func (vm *VM) Run() {
+	for {
+		select {
+		case <-vm.Clock.C:
+			if !vm.window.Closed() {
+				vm.emulateCycle()
+				vm.drawOrUpdate()
+				vm.handleKeyInput()
+				vm.delayTimerTick()
+				vm.soundTimerTick()
+				continue
+			}
+			break
+		}
+		break
+	}
+	vm.signalShutdown("Received signal - gracefully shutting down...")
+}
+
+// loads the font set into the first 80 bytes of memory
 func (vm *VM) loadFontSet() {
 	for i := 0; i < 80; i++ {
 		vm.memory[i] = pixel.FontSet[i]
@@ -80,17 +109,17 @@ func (vm *VM) loadROM(path string) error {
 		panic("error: rom too large. Max size: 3584")
 	}
 	for i := 0; i < len(rom); i++ {
-		// Ensure we write memory starting at the vm's pc
+		// Ensure we write memory starting at the program counter
 		vm.memory[0x200+i] = rom[i]
 	}
 	return nil
 }
 
-// EmulateCycle runs a full fetch, decode, and execute cycle.
+// emulateCycle runs a full fetch, decode, and execute cycle.
 // One opcode is 2 bytes long (ex. 0xA2FO) so we need to fetch two successive bytes (ex. 0xA2 and 0xF0) and merge them to get the actual opcode.
 // First we shift current instruction left 8 (ex. from 10100010 -> 1010001000000000)
 // Then we OR it with the upcoming byte which gives us a 16 bit chunk containing the combined bytes
-func (vm *VM) EmulateCycle() {
+func (vm *VM) emulateCycle() {
 	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
 	vm.drawFlag = false
 
@@ -100,9 +129,8 @@ func (vm *VM) EmulateCycle() {
 }
 
 func (vm *VM) parseOpcode() error {
-	// Decode Vx & Vy register identifiers.
-	x := (vm.opcode & 0x0F00) >> 8
-	y := (vm.opcode & 0x00F0) >> 4
+	x := (vm.opcode & 0x0F00) >> 8 // Decode Vx register identifier
+	y := (vm.opcode & 0x00F0) >> 4 // Decode Vy register identifier
 	nn := byte(vm.opcode & 0x00FF) // load last 8-bits
 	nnn := vm.opcode & 0x0FFF      // load last 12-bits
 
@@ -217,7 +245,7 @@ func (vm *VM) parseOpcode() error {
 	case 0xB000: // BNNN -> Jump to address NNN + V0
 		vm.pc = nnn + uint16(vm.v[0])
 		vm.pc += 2
-	case 0xC000: // CXNN -> Set VX to a random number with a mask of NN
+	case 0xC000: // CXNN -> Set VX to a random number from 0-255 with a mask of NN
 		vm.v[x] = byte(rand.Float32()*255) & nn
 		vm.pc += 2
 	case 0xD000: // DXYN -> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in index register
@@ -225,19 +253,21 @@ func (vm *VM) parseOpcode() error {
 		x = uint16(vm.v[x])
 		y = uint16(vm.v[y])
 
-		var pix uint16
 		height := vm.opcode & 0x000F
 		vm.v[0xF] = 0
 
+		var pix uint16
 		for yLine := uint16(0); yLine < height; yLine++ {
 			pix = uint16(vm.memory[vm.i+yLine])
+
 			for xLine := uint16(0); xLine < 8; xLine++ {
 				ind := (x + xLine + ((y + yLine) * 64))
-				if ind >= uint16(len(vm.GetGraphics())) {
+				if ind >= uint16(len(vm.getGraphics())) {
 					continue
 				}
+
 				if (pix & (0x80 >> xLine)) != 0 {
-					if vm.GetGraphics()[ind] == 1 {
+					if vm.getGraphics()[ind] == 1 {
 						vm.v[0xF] = 1
 					}
 					vm.gfx[ind] ^= 1
@@ -249,15 +279,15 @@ func (vm *VM) parseOpcode() error {
 		vm.pc += 2
 	case 0xE000:
 		switch vm.opcode & 0x00FF {
-		case 0x009E: // EX9E	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
+		case 0x009E: // EX9E -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
 			if vm.key[vm.v[x]] != 0 {
 				vm.pc += 4
 				vm.key[vm.v[x]] = 0
 			} else {
 				vm.pc += 2
 			}
-		case 0x00A1: // EXA1	-> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
-			if vm.key[vm.v[x]] != 0 {
+		case 0x00A1: // EXA1 -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
+			if vm.key[vm.v[x]] == 0 {
 				vm.pc += 4
 			} else {
 				vm.key[vm.v[x]] = 0
@@ -269,7 +299,7 @@ func (vm *VM) parseOpcode() error {
 	case 0xF000:
 		switch vm.opcode & 0x00FF {
 		case 0x0007: // FX07 -> Store the current value of the delay timer in register VX
-			vm.v[x] = vm.DelayTimer
+			vm.v[x] = vm.delayTimer
 			vm.pc += 2
 		case 0x000A: // FX0A -> Wait for a keypress and store the result in register VX
 			for i, k := range vm.key {
@@ -281,10 +311,10 @@ func (vm *VM) parseOpcode() error {
 			}
 			vm.key[vm.v[x]] = 0
 		case 0x0015: // FX15 -> Set the delay timer to the value of register VX
-			vm.DelayTimer = vm.v[x]
+			vm.delayTimer = vm.v[x]
 			vm.pc += 2
 		case 0x0018: // FX18 -> Set the sound timer to the value of register VX
-			vm.SoundTimer = vm.v[x]
+			vm.soundTimer = vm.v[x]
 			vm.pc += 2
 		case 0x001E: // FX1E -> Add the value stored in register VX to index register
 			vm.i += uint16(vm.v[x])
@@ -318,52 +348,46 @@ func (vm *VM) parseOpcode() error {
 	return nil
 }
 
-// GetGraphics TODO: doc
-func (vm *VM) GetGraphics() [64 * 32]byte {
+func (vm *VM) getGraphics() [64 * 32]byte {
 	return vm.gfx
 }
 
-// DrawFlag TODO: doc
-func (vm *VM) DrawFlag() bool {
-	f := vm.drawFlag
-	// vm.drawFlag = false may need to "read" this and set to false
-	return f
+func (vm *VM) getDrawFlag() bool {
+	return vm.drawFlag
 }
 
-// SetKeyDown marks the specified key as down.
-// Once read, the key state will be reset to up
-func (vm *VM) SetKeyDown(index byte) {
+func (vm *VM) setKeyDown(index byte) {
 	vm.key[index] = 1
 }
 
-// HandleKeyInput TODO: doc
-func (vm *VM) HandleKeyInput() {
-	for i, key := range vm.Window.KeyMap {
-		if vm.Window.JustReleased(key) {
-			if vm.Window.KeysDown[i] != nil {
-				vm.Window.KeysDown[i].Stop()
-				vm.Window.KeysDown[i] = nil
+func (vm *VM) handleKeyInput() {
+	for i, key := range vm.window.KeyMap {
+		if vm.window.JustReleased(key) {
+			if vm.window.KeysDown[i] != nil {
+				vm.window.KeysDown[i].Stop()
+				vm.window.KeysDown[i] = nil
 			}
-		} else if vm.Window.JustPressed(key) {
-			if vm.Window.KeysDown[i] == nil {
-				vm.Window.KeysDown[i] = time.NewTicker(keyRepeatDur)
+		} else if vm.window.JustPressed(key) {
+			if vm.window.KeysDown[i] == nil {
+				vm.window.KeysDown[i] = time.NewTicker(keyRepeatDur)
 			}
-			vm.SetKeyDown(byte(i))
+			vm.setKeyDown(byte(i))
 		}
 
-		if vm.Window.KeysDown[i] == nil {
+		if vm.window.KeysDown[i] == nil {
 			continue
 		}
 
 		select {
-		case <-vm.Window.KeysDown[i].C:
-			vm.SetKeyDown(byte(i))
+		case <-vm.window.KeysDown[i].C:
+			vm.setKeyDown(byte(i))
 		default:
 		}
 	}
 }
 
-// ManageAudio TODO: docs
+// ManageAudio reads and decodes the beep.mp3, initializes the speaker, and plays
+// a beep each time an audio event is placed on the channel
 func (vm *VM) ManageAudio() {
 	f, err := os.Open("assets/beep.mp3")
 	if err != nil {
@@ -381,9 +405,38 @@ func (vm *VM) ManageAudio() {
 		format.SampleRate.N(time.Second/10),
 	)
 
-	for range vm.BeepChan {
+	for range vm.audioChan {
 		speaker.Play(streamer)
 	}
+}
+
+func (vm *VM) drawOrUpdate() {
+	if vm.getDrawFlag() {
+		vm.window.DrawGraphics(vm.getGraphics())
+	} else {
+		vm.window.UpdateInput()
+	}
+}
+
+func (vm *VM) delayTimerTick() {
+	if vm.delayTimer > 0 {
+		vm.delayTimer--
+	}
+}
+
+func (vm *VM) soundTimerTick() {
+	if vm.soundTimer > 0 {
+		if vm.soundTimer == 1 {
+			vm.audioChan <- struct{}{}
+		}
+		vm.soundTimer--
+	}
+}
+
+func (vm *VM) signalShutdown(msg string) {
+	fmt.Println(msg)
+	close(vm.audioChan)
+	vm.Shutdown <- struct{}{}
 }
 
 func (vm *VM) debug() {
@@ -410,9 +463,9 @@ VD: %d
 VE: %d
 VF: %d`,
 		vm.opcode, vm.pc, vm.sp, vm.i,
-		vm.v[0], vm.v[1], vm.v[2], vm.v[3],
-		vm.v[4], vm.v[5], vm.v[6], vm.v[7],
-		vm.v[8], vm.v[9], vm.v[10], vm.v[11],
-		vm.v[12], vm.v[13], vm.v[14], vm.v[15],
+		vm.v[0], vm.v[1], vm.v[2], vm.v[3], vm.v[4],
+		vm.v[5], vm.v[6], vm.v[7], vm.v[8], vm.v[9],
+		vm.v[10], vm.v[11], vm.v[12], vm.v[13], vm.v[14],
+		vm.v[15],
 	)
 }
