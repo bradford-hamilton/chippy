@@ -1,6 +1,6 @@
 <div align="center">
   <img
-    alt="Dora backpack with JSON"
+    alt="bag of chippys"
     src="./assets/chippy.jpg"
     height="300px"
   />
