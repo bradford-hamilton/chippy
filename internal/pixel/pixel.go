@@ -86,7 +86,7 @@ func (w *Window) DrawGraphics(gfx [64 * 32]byte) {
 	for i := 0; i < 64; i++ {
 		for j := 0; j < 32; j++ {
 			// If the gfx byte in question is turned off,
-			// continue without drawing the rectangle
+			// continue and skip drawing the rectangle
 			if gfx[(31-j)*64+i] == 0 {
 				continue
 			}

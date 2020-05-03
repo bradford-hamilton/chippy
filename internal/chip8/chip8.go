@@ -1,3 +1,7 @@
+// Package chip8 is a Chip-8 emulator written in Go. Chip-8 used to be implemented on 4k systems like the Telmac 1800 and
+// Cosmac VIP where the chip-8 interprete itself occpied the first 512 bytes of memory (up to 0x200). In modern CHIP-8
+// implementations (like ours here), where the interpreter is running natively outside the 4K memory space, there is no
+// need to avoid the lower 512 bytes of memory (0x000-0x200), and it is common to store font data there.
 package chip8
 
 import (
@@ -12,34 +16,84 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-// System memory map
-// 0x000-0x1FF - Chip 8 interpreter (contains font set in emu, more on that below)
-// 0x050-0x0A0 - Used for the built in 4x5 pixel font set (0-F)
-// 0x200-0xFFF - Program ROM and work RAM
-
-// Chip-8 used to be implemented on 4k systems like the Telmac 1800 and Cosmac VIP where the chip-8 interpreter
-// itself occpied the first 512 bytes of memory (up to 0x200). In modern CHIP-8 implementations (like ours here), where
-// the interpreter is running natively outside the 4K memory space, there is no need to avoid the lower 512 bytes of
-// memory (0x000-0x200), and it is common to store font data there.
+//		System memory map
+// 		+---------------+= 0xFFF (4095) End Chip-8 RAM
+// 		|               |
+// 		|               |
+// 		|               |
+// 		|               |
+// 		|               |
+// 		| 0x200 to 0xFFF|
+// 		|     Chip-8    |
+// 		| Program / Data|
+// 		|     Space     |
+// 		|               |
+// 		|               |
+// 		|               |
+// 		+- - - - - - - -+= 0x600 (1536) Start ETI 660 Chip-8 programs
+// 		|               |
+// 		|               |
+// 		|               |
+// 		+---------------+= 0x200 (512) Start of most Chip-8 programs
+// 		| 0x000 to 0x1FF|
+// 		| Reserved for  |
+// 		|  interpreter  |
+// 		+---------------+= 0x000 (0) Begin Chip-8 RAM. We store font data here instead of storing the interpreter because we don't have that restriction.
+//
 
 // VM represents the chip-8 virtual machine
 type VM struct {
-	opcode     uint16        // opcode under examination
-	memory     [4096]byte    // VM memory -> see more on this at the top
-	v          [16]byte      // 8-bit general purpose register, (V0 - VE*)
-	i          uint16        // index register (0x000 to 0xFFF)
-	pc         uint16        // program counter (0x000 to 0xFFF)
-	stack      [16]uint16    // stack for instructions
-	sp         uint16        // stack pointer
-	gfx        [64 * 32]byte // represents the windows pixels
-	delayTimer byte          // 8-bit delay timer which counts down at 60 hertz, until it reaches 0
-	soundTimer byte          // 8-bit sound timer which counts down at 60 hertz, until it reaches 0
-	key        [16]byte      // HEX based: 0x0-0xF
-	drawFlag   bool          // doesn't draw on every cycle, set draw flag when we need to update screen.
-	window     *pixel.Window
-	Clock      *time.Ticker  // "CPU clock"
-	audioChan  chan struct{} // channel for pushing audio events
-	Shutdown   chan struct{} // shutdown signal channel
+	// Chip-8 system memory, see memory map above
+	memory [4096]byte
+
+	// Opcode under examination
+	opcode uint16
+
+	// 8-bit general purpose register, (V0 - VE*)
+	v [16]byte
+
+	// index register (0x000 to 0xFFF)
+	i uint16
+
+	// Program counter (0x000 to 0xFFF)
+	pc uint16
+
+	// Internal stack to store return addresses when calling procedures
+	stack [16]uint16
+
+	// Stack pointer is used to store return locations from the program counter register
+	sp uint16
+
+	// Represents window pixels. Bytes get flipped on and off inside to guide drawing
+	gfx [64 * 32]byte
+
+	// 8-bit delay timer which counts down at 60 hertz, until it reaches 0
+	delayTimer byte
+
+	// 8-bit sound timer which counts down at 60 hertz, until it reaches 0
+	soundTimer byte
+
+	// Keypad is HEX based: 0x0-0xF
+	//  1  2  3  C
+	//  4  5  6  D
+	//  7  8  9  E
+	//  A  0  B  F
+	keypad [16]byte
+
+	// Chippy doesn't draw on every cycle, set draw flag when we need to update screen.
+	drawFlag bool
+
+	// Embedded pixel window for displaying ROMs
+	window *pixel.Window
+
+	// Our "CPU clock"
+	Clock *time.Ticker
+
+	// Channel for sending/receiving audio events
+	audioChan chan struct{}
+
+	// Channel for sending/receiving a shutdown signal
+	Shutdown chan struct{}
 }
 
 const keyRepeatDur = time.Second / 5
@@ -60,7 +114,7 @@ func NewVM(pathToROM string) (*VM, error) {
 		pc:        0x200,
 		stack:     [16]uint16{},
 		gfx:       [64 * 32]byte{},
-		key:       [16]byte{},
+		keypad:    [16]byte{},
 		window:    window,
 		Clock:     time.NewTicker(time.Second / refreshRate),
 		audioChan: make(chan struct{}),
@@ -87,6 +141,8 @@ func (vm *VM) Run() {
 				vm.soundTimerTick()
 				continue
 			}
+			break
+		case <-vm.Shutdown:
 			break
 		}
 		break
@@ -130,7 +186,7 @@ func (vm *VM) emulateCycle() {
 }
 
 func (vm *VM) parseOpcode() error {
-	x := (vm.opcode & 0x0F00) >> 8 // Decode Vx register identifier
+	x := (vm.opcode & 0x0F00) >> 8 // Decode Vx register identifier.
 	y := (vm.opcode & 0x00F0) >> 4 // Decode Vy register identifier
 	nn := byte(vm.opcode & 0x00FF) // load last 8-bits
 	nnn := vm.opcode & 0x0FFF      // load last 12-bits
@@ -205,9 +261,9 @@ func (vm *VM) parseOpcode() error {
 			// Set VF to 00 if a borrow occurs
 			// Set VF to 01 if a borrow does not occur
 			if vm.v[y] > vm.v[x] {
-				vm.v[0xF] = 1
-			} else {
 				vm.v[0xF] = 0
+			} else {
+				vm.v[0xF] = 1
 			}
 			vm.v[x] -= vm.v[y]
 			vm.pc += 2
@@ -220,9 +276,9 @@ func (vm *VM) parseOpcode() error {
 			// Set VF to 00 if a borrow occurs
 			// Set VF to 01 if a borrow does not occur
 			if vm.v[x] > vm.v[y] {
-				vm.v[0xF] = 1
-			} else {
 				vm.v[0xF] = 0
+			} else {
+				vm.v[0xF] = 1
 			}
 			vm.v[x] = vm.v[y] - vm.v[x]
 			vm.pc += 2
@@ -251,6 +307,8 @@ func (vm *VM) parseOpcode() error {
 		vm.pc += 2
 	case 0xD000: // DXYN -> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in index register
 		// Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
+
+		// get the starting x and y coordinates of the graphics array.
 		x = uint16(vm.v[x])
 		y = uint16(vm.v[y])
 
@@ -281,17 +339,17 @@ func (vm *VM) parseOpcode() error {
 	case 0xE000:
 		switch vm.opcode & 0x00FF {
 		case 0x009E: // EX9E -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
-			if vm.key[vm.v[x]] != 0 {
+			if vm.keypad[vm.v[x]] == 1 {
 				vm.pc += 4
-				vm.key[vm.v[x]] = 0
+				vm.keypad[vm.v[x]] = 0
 			} else {
 				vm.pc += 2
 			}
 		case 0x00A1: // EXA1 -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
-			if vm.key[vm.v[x]] == 0 {
+			if vm.keypad[vm.v[x]] == 0 {
 				vm.pc += 4
 			} else {
-				vm.key[vm.v[x]] = 0
+				vm.keypad[vm.v[x]] = 0
 				vm.pc += 2
 			}
 		default:
@@ -303,14 +361,14 @@ func (vm *VM) parseOpcode() error {
 			vm.v[x] = vm.delayTimer
 			vm.pc += 2
 		case 0x000A: // FX0A -> Wait for a keypress and store the result in register VX
-			for i, k := range vm.key {
+			for i, k := range vm.keypad {
 				if k != 0 {
 					vm.v[x] = byte(i)
 					vm.pc += 2
 					break
 				}
 			}
-			vm.key[vm.v[x]] = 0
+			vm.keypad[vm.v[x]] = 0
 		case 0x0015: // FX15 -> Set the delay timer to the value of register VX
 			vm.delayTimer = vm.v[x]
 			vm.pc += 2
@@ -354,7 +412,7 @@ func (vm *VM) getGraphics() [64 * 32]byte {
 }
 
 func (vm *VM) setKeyDown(index byte) {
-	vm.key[index] = 1
+	vm.keypad[index] = 1
 }
 
 func (vm *VM) unknownOp(opcode uint16) error {
