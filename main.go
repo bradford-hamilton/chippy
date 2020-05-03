@@ -5,8 +5,8 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
+// pixelgl needs access to the main thread
 func main() {
-	// pixelgl needs access to the main thread
 	pixelgl.Run(runChippy)
 }
 

@@ -108,6 +108,7 @@ func NewVM(pathToROM string) (*VM, error) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
 	vm := VM{
 		memory:    [4096]byte{},
 		v:         [16]byte{},
@@ -120,10 +121,12 @@ func NewVM(pathToROM string) (*VM, error) {
 		audioChan: make(chan struct{}),
 		Shutdown:  make(chan struct{}),
 	}
+
 	vm.loadFontSet()
 	if err := vm.loadROM(pathToROM); err != nil {
 		return nil, err
 	}
+
 	return &vm, nil
 }
 
@@ -165,10 +168,11 @@ func (vm *VM) loadROM(path string) error {
 	if len(rom) > maxRomSize {
 		panic("error: rom too large. Max size: 3583")
 	}
+
 	for i := 0; i < len(rom); i++ {
-		// Ensure we write memory starting at the program counter
-		vm.memory[0x200+i] = rom[i]
+		vm.memory[0x200+i] = rom[i] // Ensure we write memory starting at the program counter
 	}
+
 	return nil
 }
 
@@ -407,7 +411,7 @@ func (vm *VM) parseOpcode() error {
 	return nil
 }
 
-func (vm *VM) getGraphics() [64 * 32]byte {
+func (vm VM) getGraphics() [64 * 32]byte {
 	return vm.gfx
 }
 
@@ -415,7 +419,7 @@ func (vm *VM) setKeyDown(index byte) {
 	vm.keypad[index] = 1
 }
 
-func (vm *VM) unknownOp(opcode uint16) error {
+func (vm VM) unknownOp(opcode uint16) error {
 	return fmt.Errorf("unknown opcode: %x", opcode)
 }
 
@@ -497,8 +501,7 @@ func (vm *VM) signalShutdown(msg string) {
 }
 
 func (vm *VM) debug() {
-	fmt.Printf(`
-opcode: %x
+	fmt.Printf(`opcode: %x
 pc: %d
 sp: %d
 i: %d
@@ -519,8 +522,10 @@ VC: %d
 VD: %d
 VE: %d
 VF: %d`,
-		vm.opcode, vm.pc, vm.sp, vm.i, vm.v[0], vm.v[1], vm.v[2], vm.v[3], vm.v[4],
-		vm.v[5], vm.v[6], vm.v[7], vm.v[8], vm.v[9], vm.v[10], vm.v[11], vm.v[12],
+		vm.opcode, vm.pc, vm.sp, vm.i, vm.v[0],
+		vm.v[1], vm.v[2], vm.v[3], vm.v[4],
+		vm.v[5], vm.v[6], vm.v[7], vm.v[8],
+		vm.v[9], vm.v[10], vm.v[11], vm.v[12],
 		vm.v[13], vm.v[14], vm.v[15],
 	)
 }
