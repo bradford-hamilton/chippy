@@ -39,7 +39,8 @@ const winY float64 = 32
 const screenWidth float64 = 1024
 const screenHeight float64 = 768
 
-// Window embeds a pixelgl window and offers methods for interacting with the embedded window
+// Window embeds a pixelgl window, holds a keymapping of hex -> pixelgl.Button,
+// and an array of tickers for keeping tracking of keys down
 type Window struct {
 	*pixelgl.Window
 	KeyMap   map[uint16]pixelgl.Button

@@ -44,6 +44,7 @@ type VM struct {
 
 const keyRepeatDur = time.Second / 5
 const refreshRate = 300
+const maxRomSize = 0xFFF - 0x200
 
 // NewVM initializes a Window and a VM, loads the font set and the
 // ROM into memory, and returns a pointer to the VM or an error
@@ -105,8 +106,8 @@ func (vm *VM) loadROM(path string) error {
 	if err != nil {
 		return err
 	}
-	if len(rom) >= 3585 {
-		panic("error: rom too large. Max size: 3584")
+	if len(rom) > maxRomSize {
+		panic("error: rom too large. Max size: 3583")
 	}
 	for i := 0; i < len(rom); i++ {
 		// Ensure we write memory starting at the program counter
