@@ -170,7 +170,7 @@ func (vm *VM) loadROM(path string) error {
 	}
 
 	for i := 0; i < len(rom); i++ {
-		vm.memory[0x200+i] = rom[i] // Ensure we write memory starting at the program counter
+		vm.memory[0x200+i] = rom[i] // Write memory with pc offset
 	}
 
 	return nil
@@ -311,34 +311,10 @@ func (vm *VM) parseOpcode() error {
 		vm.pc += 2
 	case 0xD000: // DXYN -> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in index register
 		// Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
-
-		// get the starting x and y coordinates of the graphics array.
+		// Get the starting x and y coordinates of the graphics array.
 		x = uint16(vm.v[x])
 		y = uint16(vm.v[y])
-
-		height := vm.opcode & 0x000F
-		vm.v[0xF] = 0
-
-		var pix uint16
-		for yLine := uint16(0); yLine < height; yLine++ {
-			pix = uint16(vm.memory[vm.i+yLine])
-
-			for xLine := uint16(0); xLine < 8; xLine++ {
-				ind := (x + xLine + ((y + yLine) * 64))
-				if ind >= uint16(len(vm.getGraphics())) {
-					continue
-				}
-
-				if (pix & (0x80 >> xLine)) != 0 {
-					if vm.getGraphics()[ind] == 1 {
-						vm.v[0xF] = 1
-					}
-					vm.gfx[ind] ^= 1
-				}
-			}
-		}
-
-		vm.drawFlag = true
+		vm.drawSprite(x, y)
 		vm.pc += 2
 	case 0xE000:
 		switch vm.opcode & 0x00FF {
@@ -445,6 +421,31 @@ func (vm *VM) handleKeyInput() {
 		default:
 		}
 	}
+}
+
+func (vm *VM) drawSprite(x, y uint16) {
+	height := vm.opcode & 0x000F
+	vm.v[0xF] = 0
+	var pix uint16
+
+	for yLine := uint16(0); yLine < height; yLine++ {
+		pix = uint16(vm.memory[vm.i+yLine])
+
+		for xLine := uint16(0); xLine < 8; xLine++ {
+			ind := (x + xLine + ((y + yLine) * 64))
+			if ind >= uint16(len(vm.getGraphics())) {
+				continue
+			}
+			if (pix & (0x80 >> xLine)) != 0 {
+				if vm.getGraphics()[ind] == 1 {
+					vm.v[0xF] = 1
+				}
+				vm.gfx[ind] ^= 1
+			}
+		}
+	}
+
+	vm.drawFlag = true
 }
 
 // ManageAudio reads and decodes the beep.mp3, initializes the speaker, and plays
