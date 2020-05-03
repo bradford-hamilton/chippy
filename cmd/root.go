@@ -32,7 +32,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-// Execute runs chippy according to the user's command/subcommand/flags
+// Execute runs chippy according to the user's command/subcommand(s)/flag(s)
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

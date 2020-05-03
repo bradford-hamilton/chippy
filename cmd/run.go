@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// runCmd runs the chippy virtual machine and waits for a shutdown signal to exit
 var runCmd = &cobra.Command{
 	Use:   "run [...flags]",
 	Short: "run the chippy emulator",

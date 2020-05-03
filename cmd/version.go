@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// versionCmd returns the callers installed chippy version
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Retrieve the currently installed chippy version",
