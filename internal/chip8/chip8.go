@@ -352,10 +352,6 @@ func (vm *VM) getGraphics() [64 * 32]byte {
 	return vm.gfx
 }
 
-func (vm *VM) getDrawFlag() bool {
-	return vm.drawFlag
-}
-
 func (vm *VM) setKeyDown(index byte) {
 	vm.key[index] = 1
 }
@@ -411,7 +407,7 @@ func (vm *VM) ManageAudio() {
 }
 
 func (vm *VM) drawOrUpdate() {
-	if vm.getDrawFlag() {
+	if vm.drawFlag {
 		vm.window.DrawGraphics(vm.getGraphics())
 	} else {
 		vm.window.UpdateInput()
