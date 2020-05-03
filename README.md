@@ -17,9 +17,9 @@ Pong
 
 ---
 
-Particles
+Space Invaders
 
-![particles](assets/particles.png)
+![space_invaders](assets/space_invaders.png)
 
 ---
 
