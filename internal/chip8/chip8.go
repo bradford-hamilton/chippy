@@ -16,29 +16,29 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-//		System memory map
-// 		+---------------+= 0xFFF (4095) End Chip-8 RAM
-// 		|               |
-// 		|               |
-// 		|               |
-// 		|               |
-// 		|               |
-// 		| 0x200 to 0xFFF|
-// 		|     Chip-8    |
-// 		| Program / Data|
-// 		|     Space     |
-// 		|               |
-// 		|               |
-// 		|               |
-// 		+- - - - - - - -+= 0x600 (1536) Start ETI 660 Chip-8 programs
-// 		|               |
-// 		|               |
-// 		|               |
-// 		+---------------+= 0x200 (512) Start of most Chip-8 programs
-// 		| 0x000 to 0x1FF|
-// 		| Reserved for  |
-// 		|  interpreter  |
-// 		+---------------+= 0x000 (0) Begin Chip-8 RAM. We store font data here instead of storing the interpreter because we don't have that restriction.
+//	 System memory map
+// 	 +---------------+= 0xFFF (4095) End Chip-8 RAM
+// 	 |               |
+// 	 |               |
+// 	 |               |
+// 	 |               |
+// 	 |               |
+// 	 | 0x200 to 0xFFF|
+// 	 |     Chip-8    |
+// 	 | Program / Data|
+// 	 |     Space     |
+// 	 |               |
+// 	 |               |
+// 	 |               |
+// 	 +- - - - - - - -+= 0x600 (1536) Start ETI 660 Chip-8 programs
+// 	 |               |
+// 	 |               |
+// 	 |               |
+// 	 +---------------+= 0x200 (512) Start of most Chip-8 programs
+// 	 | 0x000 to 0x1FF|
+// 	 | Reserved for  |
+// 	 |  interpreter  |
+// 	 +---------------+= 0x000 (0) Begin Chip-8 RAM. We store font data here instead of storing the interpreter because we don't have that restriction.
 //
 
 // VM represents the chip-8 virtual machine
