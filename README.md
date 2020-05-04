@@ -29,7 +29,29 @@ Current sources:
 - [chip-8 instruction set](http://www.multigesture.net/wp-content/uploads/mirror/goldroad/chip8_instruction_set.shtml)
 - [post by Matthew Mikolay](http://mattmik.com/files/chip8/mastering/chip8.html)
 
----
+## Installation
+```
+go install github.com/bradford-hamilton/chippy
+```
+I am still getting a bunch of deprecation warnings when building. If you see those warnings just ignore them.
+
+The screen uses CGO which isn't supported by [go-releaser](https://github.com/goreleaser/goreleaser) :( which means unfortunately I don't have a nice releases section with binaries for multiple systems.
+
+## Usage
+### Run
+```
+chippy run roms/pong.ch8
+```
+
+### Version
+```
+chippy version
+```
+
+### Help
+```
+chippy help
+```
 
 Pong
 

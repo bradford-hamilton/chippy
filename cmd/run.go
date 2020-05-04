@@ -10,7 +10,7 @@ import (
 
 // runCmd runs the chippy virtual machine and waits for a shutdown signal to exit
 var runCmd = &cobra.Command{
-	Use:   "run [...flags]",
+	Use:   "run `path/to/rom`",
 	Short: "run the chippy emulator",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {

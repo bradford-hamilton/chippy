@@ -11,7 +11,7 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Retrieve the currently installed chippy version",
-	Long:  "Simply run `chippy version` to get your current chippy version",
+	Long:  "Run `chippy version` to get your current chippy version",
 	Args:  cobra.MinimumNArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
