@@ -1,5 +1,5 @@
 // Package chip8 is a Chip-8 emulator written in Go. Chip-8 used to be implemented on 4k systems like the Telmac 1800 and
-// Cosmac VIP where the chip-8 interprete itself occpied the first 512 bytes of memory (up to 0x200). In modern CHIP-8
+// Cosmac VIP where the chip-8 interpreter itself occpied the first 512 bytes of memory (up to 0x200). In modern CHIP-8
 // implementations (like ours here), where the interpreter is running natively outside the 4K memory space, there is no
 // need to avoid the lower 512 bytes of memory (0x000-0x200), and it is common to store font data there.
 package chip8
@@ -90,10 +90,10 @@ type VM struct {
 	Clock *time.Ticker
 
 	// Channel for sending/receiving audio events
-	audioChan chan struct{}
+	audioC chan struct{}
 
 	// Channel for sending/receiving a shutdown signal
-	Shutdown chan struct{}
+	ShutdownC chan struct{}
 }
 
 const keyRepeatDur = time.Second / 5
@@ -118,11 +118,12 @@ func NewVM(pathToROM string) (*VM, error) {
 		keypad:    [16]byte{},
 		window:    window,
 		Clock:     time.NewTicker(time.Second / refreshRate),
-		audioChan: make(chan struct{}),
-		Shutdown:  make(chan struct{}),
+		audioC:    make(chan struct{}),
+		ShutdownC: make(chan struct{}),
 	}
 
 	vm.loadFontSet()
+
 	if err := vm.loadROM(pathToROM); err != nil {
 		return nil, err
 	}
@@ -145,7 +146,7 @@ func (vm *VM) Run() {
 				continue
 			}
 			break
-		case <-vm.Shutdown:
+		case <-vm.ShutdownC:
 			break
 		}
 		break
@@ -467,7 +468,7 @@ func (vm *VM) ManageAudio() {
 		format.SampleRate.N(time.Second/10),
 	)
 
-	for range vm.audioChan {
+	for range vm.audioC {
 		speaker.Play(streamer)
 	}
 }
@@ -489,7 +490,7 @@ func (vm *VM) delayTimerTick() {
 func (vm *VM) soundTimerTick() {
 	if vm.soundTimer > 0 {
 		if vm.soundTimer == 1 {
-			vm.audioChan <- struct{}{}
+			vm.audioC <- struct{}{}
 		}
 		vm.soundTimer--
 	}
@@ -497,8 +498,8 @@ func (vm *VM) soundTimerTick() {
 
 func (vm *VM) signalShutdown(msg string) {
 	fmt.Println(msg)
-	close(vm.audioChan)
-	vm.Shutdown <- struct{}{}
+	close(vm.audioC)
+	vm.ShutdownC <- struct{}{}
 }
 
 func (vm *VM) debug() {

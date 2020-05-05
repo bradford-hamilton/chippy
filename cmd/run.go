@@ -29,6 +29,6 @@ var runCmd = &cobra.Command{
 		go vm.ManageAudio()
 		go vm.Run()
 
-		<-vm.Shutdown
+		<-vm.ShutdownC
 	},
 }
