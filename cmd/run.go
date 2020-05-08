@@ -20,7 +20,7 @@ var runCmd = &cobra.Command{
 		}
 		pathToROM := os.Args[2]
 
-		vm, err := chip8.NewVM(pathToROM)
+		vm, err := chip8.NewVM(pathToROM, RefreshRate)
 		if err != nil {
 			fmt.Printf("\nerror creating a new chip-8 VM: %v\n", err)
 			os.Exit(1)

@@ -39,8 +39,14 @@ The screen uses CGO which isn't supported by [go-releaser](https://github.com/go
 
 ## Usage
 ### Run
+Default clock speed: 60Hz
 ```
 chippy run roms/pong.ch8
+```
+
+Set clock speed with flag
+```
+chippy run roms/pong.ch8 --refresh=300
 ```
 
 ### Version

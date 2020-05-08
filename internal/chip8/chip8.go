@@ -97,12 +97,11 @@ type VM struct {
 }
 
 const keyRepeatDur = time.Second / 5
-const refreshRate = 300
 const maxRomSize = 0xFFF - 0x200
 
 // NewVM initializes a Window and a VM, loads the font set and the
 // ROM into memory, and returns a pointer to the VM or an error
-func NewVM(pathToROM string) (*VM, error) {
+func NewVM(pathToROM string, clockSpeed int) (*VM, error) {
 	window, err := pixel.NewWindow()
 	if err != nil {
 		fmt.Println(err)
@@ -117,7 +116,7 @@ func NewVM(pathToROM string) (*VM, error) {
 		gfx:       [64 * 32]byte{},
 		keypad:    [16]byte{},
 		window:    window,
-		Clock:     time.NewTicker(time.Second / refreshRate),
+		Clock:     time.NewTicker(time.Second / time.Duration(clockSpeed)),
 		audioC:    make(chan struct{}),
 		ShutdownC: make(chan struct{}),
 	}

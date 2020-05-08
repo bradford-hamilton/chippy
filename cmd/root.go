@@ -9,7 +9,7 @@ import (
 )
 
 // currentReleaseVersion is used to print the version the user currently has downloaded
-const currentReleaseVersion = "v0.1.0"
+const currentReleaseVersion = "v0.1.1"
 
 // rootCmd is the base for all commands.
 var rootCmd = &cobra.Command{
@@ -27,9 +27,15 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// RefreshRate is used for holding a flag value and controlling the VM's clock speed
+var RefreshRate int
+
 func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(versionCmd)
+
+	// Check for flags set by the user and hyrate their corresponding variables.
+	runCmd.Flags().IntVarP(&RefreshRate, "refresh", "r", 60, "Your Learn api token")
 }
 
 // Execute runs chippy according to the user's command/subcommand(s)/flag(s)
