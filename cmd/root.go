@@ -27,15 +27,15 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// RefreshRate is used for holding a flag value and controlling the VM's clock speed
-var RefreshRate int
+// refreshRate is used for holding a flag value and controlling the VM's clock speed
+var refreshRate int
 
 func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	// Check for flags set by the user and hyrate their corresponding variables.
-	runCmd.Flags().IntVarP(&RefreshRate, "refresh", "r", 60, "Your Learn api token")
+	runCmd.Flags().IntVarP(&refreshRate, "refresh", "r", 60, "Set the refresh rate in Hz")
 }
 
 // Execute runs chippy according to the user's command/subcommand(s)/flag(s)
