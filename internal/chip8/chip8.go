@@ -7,7 +7,6 @@ package chip8
 import (
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"time"
 
@@ -198,186 +197,89 @@ func (vm *VM) parseOpcode() error {
 	switch vm.opcode & 0xF000 {
 	case 0x0000: // 0NNN -> Execute machine language subroutine at address NNN
 		switch vm.opcode & 0x00FF {
-		case 0x00E0: // 00E0 -> Clear the screen
-			vm.gfx = [64 * 32]byte{}
-			vm.pc += 2
-		case 0x00EE: // 00EE -> Return from a subroutine.
-			vm.pc = vm.stack[vm.sp] + 2
-			vm.sp--
+		case 0x00E0:
+			vm._0x00E0() // 00E0 -> Clear the screen
+		case 0x00EE:
+			vm._0x00EE() // 00EE -> Return from a subroutine.
 		default:
 			return vm.unknownOp(vm.opcode & 0x00FF)
 		}
-	case 0x1000: // 1NNN -> Jump to address NNN
-		vm.pc = nnn
-	case 0x2000: // 2NNN -> Execute subroutine starting at address NNN
-		vm.sp++
-		vm.stack[vm.sp] = vm.pc
-		vm.pc = nnn
-	case 0x3000: // 3XNN -> Skip the following instruction if the value of register VX == NN
-		if vm.v[x] == nn {
-			vm.pc += 4
-		} else {
-			vm.pc += 2
-		}
-	case 0x4000: // 4XNN -> Skip the following instruction if the value of register VX != NN
-		if vm.v[x] != nn {
-			vm.pc += 4
-		} else {
-			vm.pc += 2
-		}
-	case 0x5000: // 5XY0 -> Skip the following instruction if the value of register VX == VY
-		if vm.v[x] == vm.v[y] {
-			vm.pc += 4
-		} else {
-			vm.pc += 2
-		}
-	case 0x6000: // 6XNN -> Store number NN in register VX
-		vm.v[x] = nn
-		vm.pc += 2
-	case 0x7000: // 7XNN -> Add the value NN to register VX
-		vm.v[x] += nn
-		vm.pc += 2
+	case 0x1000:
+		vm._0x1000(nnn) // 1NNN -> Jump to address NNN
+	case 0x2000:
+		vm._0x2000(nnn) // 2NNN -> Execute subroutine starting at address NNN
+	case 0x3000:
+		vm._0x3000(x, nn) // 3XNN -> Skip the following instruction if the value of register VX == NN
+	case 0x4000:
+		vm._0x4000(x, nn) // 4XNN -> Skip the following instruction if the value of register VX != NN
+	case 0x5000:
+		vm._0x5000(x, y) // 5XY0 -> Skip the following instruction if the value of register VX == VY
+	case 0x6000:
+		vm._0x6000(x, nn) // 6XNN -> Store number NN in register VX
+	case 0x7000:
+		vm._0x7000(x, nn) // 7XNN -> Add the value NN to register VX
 	case 0x8000:
 		switch vm.opcode & 0x000F {
-		case 0x0000: // 8XYO -> Store the value of register VY in register VX
-			vm.v[x] = vm.v[y]
-			vm.pc += 2
-		case 0x0001: // 8XY1 -> Set VX to VX OR VY
-			vm.v[x] |= vm.v[y]
-			vm.pc += 2
-		case 0x0002: // 8XY2 -> Set VX to VX AND VY
-			vm.v[x] &= vm.v[y]
-			vm.pc += 2
-		case 0x0003: // 8XY3 -> Set VX to VX XOR VY
-			vm.v[x] ^= vm.v[y]
-			vm.pc += 2
-		case 0x0004: // 8XY4 -> Add the value of register VY to register VX
-			// Set VF to 01 if a carry occurs
-			// Set VF to 00 if a carry does not occur
-			if vm.v[y] > (0xFF - vm.v[x]) {
-				vm.v[0xF] = 1
-			} else {
-				vm.v[0xF] = 0
-			}
-			vm.v[x] += vm.v[y]
-			vm.pc += 2
-		case 0x0005: // 8XY5 -> Subtract the value of register VY from register VX
-			// Set VF to 00 if a borrow occurs
-			// Set VF to 01 if a borrow does not occur
-			if vm.v[y] > vm.v[x] {
-				vm.v[0xF] = 0
-			} else {
-				vm.v[0xF] = 1
-			}
-			vm.v[x] -= vm.v[y]
-			vm.pc += 2
-		case 0x0006: // 8XY6 -> Store the value of register VY shifted right one bit in register VX
-			// Set register VF to the least significant bit prior to the shift
-			vm.v[x] = vm.v[y] >> 1
-			vm.v[0xF] = vm.v[y] & 0x01
-			vm.pc += 2
-		case 0x0007: // 8XY7 -> Set register VX to the value of VY minus VX
-			// Set VF to 00 if a borrow occurs
-			// Set VF to 01 if a borrow does not occur
-			if vm.v[x] > vm.v[y] {
-				vm.v[0xF] = 0
-			} else {
-				vm.v[0xF] = 1
-			}
-			vm.v[x] = vm.v[y] - vm.v[x]
-			vm.pc += 2
-		case 0x000E: // 8XYE -> Store the value of register VY shifted left one bit in register VX
-			// Set register VF to the most significant bit prior to the shift
-			vm.v[x] = vm.v[y] << 1
-			vm.v[0xF] = vm.v[y] & 0x80
-			vm.pc += 2
+		case 0x0000:
+			vm._0x0000(x, y) // 8XYO -> Store the value of register VY in register VX
+		case 0x0001:
+			vm._0x0001(x, y) // 8XY1 -> Set VX to VX OR VY
+		case 0x0002:
+			vm._0x0002(x, y) // 8XY2 -> Set VX to VX AND VY
+		case 0x0003:
+			vm._0x0003(x, y) // 8XY3 -> Set VX to VX XOR VY
+		case 0x0004:
+			vm._0x0004(x, y) // 8XY4 -> Add the value of register VY to register VX
+		case 0x0005:
+			vm._0x0005(x, y) // 8XY5 -> Subtract the value of register VY from register VX
+		case 0x0006:
+			vm._0x0006(x, y) // 8XY6 -> Store the value of register VY shifted right one bit in register VX
+		case 0x0007:
+			vm._0x0007_1(x, y) // 8XY7 -> Set register VX to the value of VY minus VX
+		case 0x000E:
+			vm._0x000E(x, y) // 8XYE -> Store the value of register VY shifted left one bit in register VX
 		default:
 			return vm.unknownOp(vm.opcode & 0x000F)
 		}
-	case 0x9000: // 9XY0 -> Skip the following instruction if the value of VX != value of VY
-		if vm.v[x] != vm.v[y] {
-			vm.pc += 4
-		} else {
-			vm.pc += 2
-		}
-	case 0xA000: // ANNN -> Store memory address NNN in index register
-		vm.i = nnn
-		vm.pc += 2
-	case 0xB000: // BNNN -> Jump to address NNN + V0
-		vm.pc = nnn + uint16(vm.v[0])
-		vm.pc += 2
-	case 0xC000: // CXNN -> Set VX to a random number from 0-255 with a mask of NN
-		vm.v[x] = byte(rand.Float32()*255) & nn
-		vm.pc += 2
-	case 0xD000: // DXYN -> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in index register
-		// Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
-		// Get the starting x and y coordinates of the graphics array.
-		x = uint16(vm.v[x])
-		y = uint16(vm.v[y])
-		vm.drawSprite(x, y)
-		vm.pc += 2
+	case 0x9000:
+		vm._0x9000(x, y) // 9XY0 -> Skip the following instruction if the value of VX != value of VY
+	case 0xA000:
+		vm._0xA000(nnn) // ANNN -> Store memory address NNN in index register
+	case 0xB000:
+		vm._0xB000(nnn) // BNNN -> Jump to address NNN + V0
+	case 0xC000:
+		vm._0xC000(x, nn) // CXNN -> Set VX to a random number from 0-255 with a mask of NN
+	case 0xD000:
+		vm._0xD000(x, y) // DXYN -> Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in index register
 	case 0xE000:
 		switch vm.opcode & 0x00FF {
-		case 0x009E: // EX9E -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
-			if vm.keypad[vm.v[x]] == 1 {
-				vm.pc += 4
-				vm.keypad[vm.v[x]] = 0
-			} else {
-				vm.pc += 2
-			}
-		case 0x00A1: // EXA1 -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
-			if vm.keypad[vm.v[x]] == 0 {
-				vm.pc += 4
-			} else {
-				vm.keypad[vm.v[x]] = 0
-				vm.pc += 2
-			}
+		case 0x009E:
+			vm._0x009E(x) // EX9E -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed
+		case 0x00A1:
+			vm._0x00A1(x) // EXA1 -> Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed
 		default:
 			return vm.unknownOp(vm.opcode & 0x00FF)
 		}
 	case 0xF000:
 		switch vm.opcode & 0x00FF {
-		case 0x0007: // FX07 -> Store the current value of the delay timer in register VX
-			vm.v[x] = vm.delayTimer
-			vm.pc += 2
-		case 0x000A: // FX0A -> Wait for a keypress and store the result in register VX
-			for i, k := range vm.keypad {
-				if k != 0 {
-					vm.v[x] = byte(i)
-					vm.pc += 2
-					break
-				}
-			}
-			vm.keypad[vm.v[x]] = 0
-		case 0x0015: // FX15 -> Set the delay timer to the value of register VX
-			vm.delayTimer = vm.v[x]
-			vm.pc += 2
-		case 0x0018: // FX18 -> Set the sound timer to the value of register VX
-			vm.soundTimer = vm.v[x]
-			vm.pc += 2
-		case 0x001E: // FX1E -> Add the value stored in register VX to index register
-			vm.i += uint16(vm.v[x])
-			vm.pc += 2
-		case 0x0029: // FX29 -> Set index register to the memory address of the sprite data corresponding to the hexadecimal digit stored in register VX
-			vm.i = uint16(vm.v[x]) * 5
-			vm.pc += 2
-		case 0x0033: // FX33 -> Store the binary-coded decimal equivalent of the value stored in register VX at addresses i, i+1, and i+2
-			vm.memory[vm.i] = vm.v[x] / 100
-			vm.memory[vm.i+1] = (vm.v[x] / 10) % 10
-			vm.memory[vm.i+2] = (vm.v[x] % 100) % 10
-			vm.pc += 2
-		case 0x0055: // FX55 -> Store the values of registers V0 to VX inclusive in memory starting at address i
-			// i is set to i+x+1 after operation
-			for ind := uint16(0); ind <= x; ind++ {
-				vm.memory[vm.i+ind] = vm.v[ind]
-			}
-			vm.pc += 2
-		case 0x0065: // FX65 -> Fill registers V0 to VX inclusive with the values stored in memory starting at address i
-			// i is set to i+x+1 after operation
-			for ind := uint16(0); ind <= x; ind++ {
-				vm.v[ind] = vm.memory[vm.i+ind]
-			}
-			vm.pc += 2
+		case 0x0007:
+			vm._0x0007_2(x) // FX07 -> Store the current value of the delay timer in register VX
+		case 0x000A:
+			vm._0x000A(x) // FX0A -> Wait for a keypress and store the result in register VX
+		case 0x0015:
+			vm._0x0015(x) // FX15 -> Set the delay timer to the value of register VX
+		case 0x0018:
+			vm._0x0018(x) // FX18 -> Set the sound timer to the value of register VX
+		case 0x001E:
+			vm._0x001E(x) // FX1E -> Add the value stored in register VX to index register
+		case 0x0029:
+			vm._0x0029(x) // FX29 -> Set index register to the memory address of the sprite data corresponding to the hexadecimal digit stored in register VX
+		case 0x0033:
+			vm._0x0033(x) // FX33 -> Store the binary-coded decimal equivalent of the value stored in register VX at addresses i, i+1, and i+2
+		case 0x0055:
+			vm._0x0055(x) // FX55 -> Store the values of registers V0 to VX inclusive in memory starting at address i
+		case 0x0065:
+			vm._0x0065(x) // FX65 -> Fill registers V0 to VX inclusive with the values stored in memory starting at address i
 		default:
 			return vm.unknownOp(vm.opcode & 0x00FF)
 		}
