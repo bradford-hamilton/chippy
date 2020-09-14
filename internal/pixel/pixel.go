@@ -34,10 +34,12 @@ var FontSet = [80]byte{
 	0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 }
 
-const winX float64 = 64
-const winY float64 = 32
-const screenWidth float64 = 1024
-const screenHeight float64 = 768
+const (
+	winX         float64 = 64
+	winY         float64 = 32
+	screenWidth  float64 = 1024
+	screenHeight float64 = 768
+)
 
 // Window embeds a pixelgl window, holds a keymapping of hex -> pixelgl.Button,
 // and an array of tickers for keeping tracking of keys down

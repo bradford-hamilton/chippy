@@ -95,8 +95,10 @@ type VM struct {
 	ShutdownC chan struct{}
 }
 
-const keyRepeatDur = time.Second / 5
-const maxRomSize = 0xFFF - 0x200
+const (
+	keyRepeatDur = time.Second / 5
+	maxRomSize   = 0xFFF - 0x200
+)
 
 // NewVM initializes a Window and a VM, loads the font set and the
 // ROM into memory, and returns a pointer to the VM or an error
