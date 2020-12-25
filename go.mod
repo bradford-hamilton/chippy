@@ -1,6 +1,6 @@
 module github.com/bradford-hamilton/chippy
 
-go 1.14
+go 1.15
 
 require (
 	github.com/faiface/beep v1.0.2
@@ -11,7 +11,8 @@ require (
 	github.com/go-gl/glfw v0.0.0-20200420212212-258d9bec320e // indirect
 	github.com/go-gl/mathgl v0.0.0-20190713194549-592312d8590a // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/spf13/cobra v0.0.5
+	github.com/spf13/cobra v1.0.0
+	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/image v0.0.0-20190321063152-3fc05d484e9f
 	golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223 // indirect
 )
