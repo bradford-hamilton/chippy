@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -16,12 +15,7 @@ var rootCmd = &cobra.Command{
 	Use:   "chippy [command]",
 	Short: "chippy is Chip-8 emulator",
 	Long:  "chippy is Chip-8 emulator",
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 1 {
-			return errors.New("Requires at least 1 argument")
-		}
-		return nil
-	},
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Unknown command. Try `chippy help` for more information")
 	},

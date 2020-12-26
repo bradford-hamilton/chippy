@@ -13,22 +13,24 @@ var runCmd = &cobra.Command{
 	Use:   "run `path/to/rom`",
 	Short: "run the chippy emulator",
 	Args:  cobra.MinimumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 1 {
-			fmt.Println("The run command takes one argument: a `path/to/rom`")
-			os.Exit(1)
-		}
-		pathToROM := os.Args[2]
+	Run:   runChippy,
+}
 
-		vm, err := chip8.NewVM(pathToROM, refreshRate)
-		if err != nil {
-			fmt.Printf("\nerror creating a new chip-8 VM: %v\n", err)
-			os.Exit(1)
-		}
+func runChippy(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println("The run command takes one argument: a `path/to/rom`")
+		os.Exit(1)
+	}
+	pathToROM := os.Args[2]
 
-		go vm.ManageAudio()
-		go vm.Run()
+	vm, err := chip8.NewVM(pathToROM, refreshRate)
+	if err != nil {
+		fmt.Printf("\nerror creating a new chip-8 VM: %v\n", err)
+		os.Exit(1)
+	}
 
-		<-vm.ShutdownC
-	},
+	go vm.ManageAudio()
+	go vm.Run()
+
+	<-vm.ShutdownC
 }
