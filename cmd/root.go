@@ -16,9 +16,11 @@ var rootCmd = &cobra.Command{
 	Short: "chippy is Chip-8 emulator",
 	Long:  "chippy is Chip-8 emulator",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Unknown command. Try `chippy help` for more information")
-	},
+	Run:   runRoot,
+}
+
+func runRoot(cmd *cobra.Command, args []string) {
+	fmt.Println("Unknown command. Try `chippy help` for more information")
 }
 
 // refreshRate is used for holding a flag value and controlling the VM's clock speed
