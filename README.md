@@ -8,7 +8,7 @@
 <h1 align="center">Welcome to Chippy 👋</h1>
 <p align="center">
   <a href="https://golang.org/dl" target="_blank">
-    <img alt="Using go version 1.14" src="https://img.shields.io/badge/go-1.14-9cf.svg" />
+    <img alt="Using go version 1.20" src="https://img.shields.io/badge/go-1.20-9cf.svg" />
   </a>
   <a href="https://goreportcard.com/report/github.com/bradford-hamilton/chippy" target="_blank">
     <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/bradford-hamilton/chippy/pkg" />
