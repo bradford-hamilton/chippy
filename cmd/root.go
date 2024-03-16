@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"os"
+	"log"
 
 	"github.com/spf13/cobra"
 )
 
 // currentReleaseVersion is used to print the version the user currently has downloaded
-const currentReleaseVersion = "v0.1.1"
+const currentReleaseVersion = "v0.2.0"
 
 // rootCmd is the base for all commands.
 var rootCmd = &cobra.Command{
@@ -37,7 +37,6 @@ func init() {
 // Execute runs chippy according to the user's command/subcommand(s)/flag(s)
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }

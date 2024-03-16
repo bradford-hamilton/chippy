@@ -1,6 +1,6 @@
 module github.com/bradford-hamilton/chippy
 
-go 1.20
+go 1.22.1
 
 require (
 	github.com/faiface/beep v1.1.0

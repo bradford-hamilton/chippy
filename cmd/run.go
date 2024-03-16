@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/bradford-hamilton/chippy/internal/chip8"
@@ -18,15 +18,13 @@ var runCmd = &cobra.Command{
 
 func runChippy(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("The run command takes one argument: a `path/to/rom`")
-		os.Exit(1)
+		log.Fatal("The run command takes one argument: a `path/to/rom`")
 	}
 	pathToROM := os.Args[2]
 
 	vm, err := chip8.NewVM(pathToROM, refreshRate)
 	if err != nil {
-		fmt.Printf("\nerror creating a new chip-8 VM: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("\nerror creating a new chip-8 VM: %v\n", err)
 	}
 
 	go vm.ManageAudio()

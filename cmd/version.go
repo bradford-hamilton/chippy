@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -17,9 +16,5 @@ var versionCmd = &cobra.Command{
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
-	if len(args) != 0 {
-		fmt.Println("The version command does not take any arguments")
-		os.Exit(1)
-	}
 	fmt.Println(currentReleaseVersion)
 }

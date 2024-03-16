@@ -5,8 +5,9 @@
 package chip8
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"log"
 	"os"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
+//
 //	 System memory map
 // 	 +---------------+= 0xFFF (4095) End Chip-8 RAM
 // 	 |               |
@@ -105,8 +107,7 @@ const (
 func NewVM(pathToROM string, clockSpeed int) (*VM, error) {
 	window, err := pixel.NewWindow()
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	vm := VM{
@@ -122,9 +123,7 @@ func NewVM(pathToROM string, clockSpeed int) (*VM, error) {
 		ShutdownC: make(chan struct{}),
 	}
 
-	vm.loadFontSet()
-
-	if err := vm.loadROM(pathToROM); err != nil {
+	if err := vm.initialize(pathToROM); err != nil {
 		return nil, err
 	}
 
@@ -134,6 +133,7 @@ func NewVM(pathToROM string, clockSpeed int) (*VM, error) {
 // Run starts the vm and emulates a clock that runs by default at 60MHz
 // This can be changed with a flag.
 func (vm *VM) Run() {
+outer:
 	for {
 		select {
 		case <-vm.Clock.C:
@@ -145,32 +145,39 @@ func (vm *VM) Run() {
 				vm.soundTimerTick()
 				continue
 			}
-			break
+			break outer
 		case <-vm.ShutdownC:
-			break
+			break outer
 		}
-		break
 	}
 	vm.signalShutdown("Received signal - gracefully shutting down...")
 }
 
+func (vm *VM) initialize(pathToROM string) error {
+	vm.loadFontSet()
+	if err := vm.loadROM(pathToROM); err != nil {
+		return err
+	}
+	return nil
+}
+
 // loads the font set into the first 80 bytes of memory
 func (vm *VM) loadFontSet() {
-	for i := 0; i < 80; i++ {
+	for i := range 80 {
 		vm.memory[i] = pixel.FontSet[i]
 	}
 }
 
 func (vm *VM) loadROM(path string) error {
-	rom, err := ioutil.ReadFile(path)
+	rom, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
 	if len(rom) > maxRomSize {
-		panic("error: rom too large. Max size: 3583")
+		return errors.New("error: rom too large. Max size: 3583")
 	}
 
-	for i := 0; i < len(rom); i++ {
+	for i := range len(rom) {
 		vm.memory[0x200+i] = rom[i] // Write memory with pc offset
 	}
 
@@ -291,9 +298,7 @@ func (vm *VM) parseOpcode() error {
 	return nil
 }
 
-func (vm VM) getGraphics() [64 * 32]byte {
-	return vm.gfx
-}
+func (vm VM) getGraphics() [64 * 32]byte { return vm.gfx }
 
 func (vm *VM) setKeyDown(index byte) {
 	vm.keypad[index] = 1
@@ -359,6 +364,7 @@ func (vm *VM) ManageAudio() {
 	if err != nil {
 		return
 	}
+	defer f.Close()
 
 	streamer, format, err := mp3.Decode(f)
 	if err != nil {
@@ -366,10 +372,12 @@ func (vm *VM) ManageAudio() {
 	}
 	defer streamer.Close()
 
-	speaker.Init(
+	if err := speaker.Init(
 		format.SampleRate,
 		format.SampleRate.N(time.Second/10),
-	)
+	); err != nil {
+		panic("failed to initialize speakers")
+	}
 
 	for range vm.audioC {
 		speaker.Play(streamer)
